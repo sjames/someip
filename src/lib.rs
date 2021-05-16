@@ -5,6 +5,8 @@ pub mod server;
 pub mod someip_codec;
 pub mod tasks;
 
+pub use someip_codec::SomeIpPacket;
+
 #[cfg(test)]
 mod tests {
     #[test]
