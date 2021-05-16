@@ -6,6 +6,8 @@ use bytes::Bytes;
 use bincode::{deserialize, serialize};
 use serde::*;
 
+mod trait_tryout;
+
 struct Field<T>(T);
 
 impl<T> Field<T> {
