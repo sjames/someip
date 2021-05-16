@@ -23,19 +23,19 @@ impl SomeIpPacket {
         Self { payload, header }
     }
 
-    pub fn error_packet_from(received: SomeIpPacket, code: ReturnCode) -> Self {
+    pub fn error_packet_from(received: SomeIpPacket, code: ReturnCode, payload: Bytes) -> Self {
         let mut header = received.header;
         header.message_type = MessageType::Error;
         header.return_code = code.into();
-        let payload = Bytes::new();
+        let payload =payload;
         Self::new(header, payload)
     }
 
-    pub fn reply_packet_from(received: SomeIpPacket, code: ReturnCode) -> Self {
+    pub fn reply_packet_from(received: SomeIpPacket, code: ReturnCode, payload: Bytes) -> Self {
         let mut header = received.header;
         header.message_type = MessageType::Response;
         header.return_code = code.into();
-        let payload = Bytes::new();
+        let payload = payload;
         Self::new(header, payload)
     }
 

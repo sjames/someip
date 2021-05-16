@@ -1,4 +1,5 @@
 use crate::{config::Configuration, connection::SomeIPCodec, someip_codec::SomeIpPacket};
+use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use someip_parse::MessageType;
 use std::{
@@ -118,6 +119,7 @@ pub async fn tcp_server_task(
                                         let error = SomeIpPacket::error_packet_from(
                                             packet,
                                             someip_parse::ReturnCode::UnknownService,
+                                            Bytes::new()
                                         );
                                         if let Err(e) = tx.send(error).await {
                                             log::error!("Error sending error reply {}", e);
@@ -216,6 +218,7 @@ pub async fn udp_task(
                                 let error = SomeIpPacket::error_packet_from(
                                     packet,
                                     someip_parse::ReturnCode::UnknownService,
+                                    Bytes::new()
                                 );
                                 tx.send((error, addr)).await?;
                             }
