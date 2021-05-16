@@ -1,0 +1,10 @@
+{
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+      100
+    ],
+    //"rust-analyzer.cargo.target": "aarch64-unknown-none-softfloat",
+    //"rust-analyzer.cargo.features": [
+    //  "bsp_qemu_virt"
+    //]
+  }
