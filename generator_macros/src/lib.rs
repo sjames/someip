@@ -2,6 +2,7 @@ use derive_syn_parse::Parse;
 use proc_macro::{self, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
+use std::str::FromStr;
 use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
 use syn::punctuated::Punctuated;
 use syn::{Expr, Signature, *};
@@ -80,6 +81,64 @@ fn get_methods(service: &Service) -> Vec<syn::TraitItemMethod> {
     methods
 }
 
+fn create_method_handler_match_case(service_entry: &ServiceEntry) -> TokenStream {
+    todo!()
+}
+
+fn get_method_ids(service: &Service) -> Vec<u32> {
+    get_ids(service, "method_ids")
+}
+
+fn get_field_ids(service: &Service) -> Vec<u32> {
+    get_ids(service, "event_ids")
+}
+
+fn get_ids(service: &Service, id_type: &str) -> Vec<u32> {
+    let mut ids: Vec<u32> = Vec::new();
+    let fields: Vec<&ServiceEntry> = service
+        .entries
+        .iter()
+        .filter_map(|e| {
+            if e.ident.to_string().as_str() == id_type {
+                Some(e)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    for field_entry in fields.iter() {
+        for entry in field_entry.fields.iter() {
+            ids.push(entry.id.id())
+        }
+    }
+
+    ids
+}
+
+fn create_dispatch_handler(service: &Service, item_trait: &syn::ItemTrait) -> syn::TraitItemMethod {
+    let method_ids = get_method_ids(service);
+    let method_ids: Vec<TokenStream2> = method_ids
+        .iter()
+        .map(|i| TokenStream2::from_str(&format!("{}", i)).unwrap())
+        .collect();
+
+    let dispatch_tokens = quote! {
+        fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            match pkt.header().event_or_method_id() {
+            #(#method_ids => {
+
+            })*
+            }
+        }
+    };
+
+    println!("dispatch function\n:{}", &dispatch_tokens.to_string());
+
+    let method: syn::TraitItemMethod = syn::parse2(dispatch_tokens).unwrap();
+    method
+}
+
 // create structures for marshalling and unmarshalling the input
 // and output parameters
 fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::ItemStruct> {
@@ -143,6 +202,8 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
+    let dispatch_handler = create_dispatch_handler(&service, &service_trait);
+
     let item_structs = create_internal_marshalling_structs(&service_trait);
 
     let new_methods = get_methods(&service);
@@ -167,12 +228,56 @@ struct Service {
     entries: Punctuated<ServiceEntry, Token![,]>,
 }
 
+impl Service {
+    fn get_method_field(&self, id: u32) -> Option<&Field> {
+        let service_entries: Vec<&ServiceEntry> = self
+            .entries
+            .iter()
+            .filter_map(|e| {
+                if e.ident.to_string().as_str() == "method_ids" {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for entry in &service_entries {
+            for field in &entry.fields {
+                if field.id.id() == id {
+                    return Some(field);
+                }
+            }
+        }
+        None
+    }
+}
+
 #[derive(Parse)]
 struct Id {
     id: ExprLit,
     arrow: Option<Token![=>]>,
     #[parse_if(arrow.is_some())]
     group_id: Option<ExprLit>,
+}
+
+impl Id {
+    fn id(&self) -> u32 {
+        let mut tokens = TokenStream2::new();
+        self.id.to_tokens(&mut tokens);
+        let id: u32 = tokens.to_string().parse().unwrap();
+
+        id
+    }
+
+    fn group_id(&self) -> Option<u32> {
+        let mut tokens = TokenStream2::new();
+        self.group_id.as_ref().map(|e| {
+            e.to_tokens(&mut tokens);
+            let id: u32 = tokens.to_string().parse().unwrap();
+            id
+        })
+    }
 }
 
 #[derive(Parse)]
