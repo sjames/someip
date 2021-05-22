@@ -19,7 +19,26 @@ impl<T> Field<T> {
     }
 }
 
-struct HelloServer {
+pub trait HelloServer {
+
+    fn get_field1() -> Result<u32,io::Error>;
+    fn set_field1() -> Result<(),io::Error>;
+
+    fn event() -> Result<(),io::Error> {
+        todo!();
+    }
+
+    fn echo_int(&mut self, param: EchoIntCallParams) -> Result<EchoIntResponseParams, io::Error>;
+
+    fn echo_string(
+        &mut self,
+        param: EchoStringCallParams,
+    ) -> Result<EchoStringResponseParams, io::Error>;
+}
+
+
+
+struct HelloServerImpl {
     field_u32: Field<u32>,
     field_string: Field<String>,
 }
@@ -49,7 +68,7 @@ pub struct EchoStringResponseParams {
     pub value: String,
 }
 
-impl HelloServer {
+impl HelloServerImpl {
     fn echo_int(&mut self, param: EchoIntCallParams) -> Result<EchoIntResponseParams, io::Error> {
         Ok(EchoIntResponseParams { value: param.value })
     }
@@ -67,7 +86,7 @@ impl HelloServer {
 }
 
 /// This function should be auto-generated
-impl someip::server::ServerRequestHandler for HelloServer {
+impl someip::server::ServerRequestHandler for HelloServerImpl {
     fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
         match pkt.header().event_or_method_id() {
             // MethodID 0 -> echo_int

@@ -302,6 +302,7 @@ mod tests {
                 Some(SomeIpPacket::reply_packet_from(
                     message,
                     someip_parse::ReturnCode::Ok,
+                    Bytes::new(),
                 ))
             }
         }
