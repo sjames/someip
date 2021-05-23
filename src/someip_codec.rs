@@ -27,7 +27,7 @@ impl SomeIpPacket {
         let mut header = received.header;
         header.message_type = MessageType::Error;
         header.return_code = code.into();
-        let payload =payload;
+        let payload = payload;
         Self::new(header, payload)
     }
 

@@ -5,6 +5,7 @@ mod interface {
     use std::io;
     use serde::{Serialize, Deserialize};
 
+
     #[derive(Serialize,Deserialize)]
     pub struct Field1 {
         a: u32,
@@ -20,7 +21,7 @@ mod interface {
     }
 
     #[service(fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
-        events([1=>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
+        events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
         method_ids([1]echo_int, [2]echo_string))]
     pub trait HelloWorld {
         fn echo_int(&mut self, value: i32, value1: Field1) -> Result<i32, io::Error>;

@@ -81,20 +81,98 @@ fn get_methods(service: &Service) -> Vec<syn::TraitItemMethod> {
     methods
 }
 
-fn create_method_handler_match_case(service_entry: &ServiceEntry) -> TokenStream {
-    todo!()
+fn find_method_by_name<'a>(
+    method_name: &str,
+    item_trait: &'a syn::ItemTrait,
+) -> Option<&'a syn::TraitItemMethod> {
+    for item in &item_trait.items {
+        if let syn::TraitItem::Method(m) = item {
+            if m.sig.ident.to_string().as_str() == method_name {
+                return Some(m);
+            }
+        }
+    }
+    None
 }
 
-fn get_method_ids(service: &Service) -> Vec<u32> {
+fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let method = find_method_by_name(method_name, item_trait).expect("Expecting method");
+    let input_struct_name = input_struct_name_from_method(method);
+    let method_name = &method.sig.ident;
+
+    let params: Vec<syn::Pat> = method
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Receiver(_r) => None,
+            syn::FnArg::Typed(pat_type) => Some(pat_type.pat.as_ref().clone()),
+        })
+        .collect();
+
+    let call_method = quote! {
+        let in_param : #input_struct_name = deserialize(params_raw).unwrap();
+        let res = self.#method_name(#(in_param.#params),*);
+    };
+
+    call_method
+}
+
+fn create_field_getter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let field_get_name = format!("get_{}", field_name);
+    let method = find_method_by_name(&field_get_name, item_trait).expect("Expecting method");
+    let method_name = &method.sig.ident;
+    let params: Vec<syn::Pat> = method
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Receiver(_r) => None,
+            syn::FnArg::Typed(pat_type) => Some(pat_type.pat.as_ref().clone()),
+        })
+        .collect();
+
+    let call_method = quote! {
+        self.#method_name()
+    };
+
+    call_method
+}
+
+fn create_field_setter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let field_get_name = format!("set_{}", field_name);
+    let method = find_method_by_name(&field_get_name, item_trait).expect("Expecting method");
+    let method_name = &method.sig.ident;
+    let params: Vec<syn::Type> = method
+        .sig
+        .inputs
+        .iter()
+        .filter_map(|arg| match arg {
+            syn::FnArg::Receiver(_r) => None,
+            syn::FnArg::Typed(pat_type) => Some(pat_type.ty.as_ref().clone()),
+        })
+        .take(1)
+        .collect();
+    let field_type = &params[0];
+
+    let call_method = quote! {
+        let field: #field_type = deserialize(params_raw).unwrap();
+        let res = self.#method_name (field);
+    };
+
+    call_method
+}
+
+fn get_method_ids(service: &Service) -> Vec<(u32, Ident)> {
     get_ids(service, "method_ids")
 }
 
-fn get_field_ids(service: &Service) -> Vec<u32> {
-    get_ids(service, "event_ids")
+fn get_field_ids(service: &Service) -> Vec<(u32, Ident)> {
+    get_ids(service, "events")
 }
 
-fn get_ids(service: &Service, id_type: &str) -> Vec<u32> {
-    let mut ids: Vec<u32> = Vec::new();
+fn get_ids(service: &Service, id_type: &str) -> Vec<(u32, Ident)> {
+    let mut ids: Vec<(u32, Ident)> = Vec::new();
     let fields: Vec<&ServiceEntry> = service
         .entries
         .iter()
@@ -109,36 +187,126 @@ fn get_ids(service: &Service, id_type: &str) -> Vec<u32> {
 
     for field_entry in fields.iter() {
         for entry in field_entry.fields.iter() {
-            ids.push(entry.id.id())
+            ids.push((entry.id.id(), entry.name.clone()))
         }
     }
 
     ids
 }
 
-fn create_dispatch_handler(service: &Service, item_trait: &syn::ItemTrait) -> syn::TraitItemMethod {
-    let method_ids = get_method_ids(service);
-    let method_ids: Vec<TokenStream2> = method_ids
+fn dispatch_method_call(id: u32, service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let field = service.get_method_field(id).unwrap();
+
+    todo!()
+}
+
+fn create_dispatch_handler(
+    struct_name: &Ident,
+    service: &Service,
+    item_trait: &syn::ItemTrait,
+) -> syn::ItemImpl {
+    let method_id_name = get_method_ids(service);
+    let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
-        .map(|i| TokenStream2::from_str(&format!("{}", i)).unwrap())
+        .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i)).unwrap())
         .collect();
 
-    let dispatch_tokens = quote! {
-        fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
-            match pkt.header().event_or_method_id() {
-            #(#method_ids => {
+    let mut deserialize_call = Vec::new();
+    for e in &method_id_name {
+        let deser_tokens = create_deser_tokens(e.1.to_string().as_ref(), item_trait);
+        deserialize_call.push(deser_tokens);
+    }
 
-            })*
+    let field_id_names = get_field_ids(service);
+    let field_ids: Vec<TokenStream2> = field_id_names
+        .iter()
+        .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i + 0x8000)).unwrap())
+        .collect();
+
+    let mut event_getters = Vec::new();
+    for f in &field_id_names {
+        let getter_tokens = create_field_getter_fn(f.1.to_string().as_ref(), item_trait);
+        event_getters.push(getter_tokens);
+    }
+
+    let mut event_setters = Vec::new();
+    for f in &field_id_names {
+        let getter_tokens = create_field_setter_fn(f.1.to_string().as_ref(), item_trait);
+        event_setters.push(getter_tokens);
+    }
+
+    let dispatch_tokens = quote! {
+        impl someip::server::ServerRequestHandler for #struct_name {
+            fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+                match pkt.header().event_or_method_id() {
+                    #(#method_ids => {
+                        let params_raw = pkt.payload().as_ref();
+                        #deserialize_call
+                        match res {
+                            Ok(r) => {
+                                let reply_raw = serialize(&r).unwrap();
+                                let reply_payload = Bytes::from(reply_raw);
+                                Some(SomeIpPacket::reply_packet_from(pkt, someip_codec::ReturnCode::Ok, reply_payload))
+                            }
+                            Err(e) => {
+                                Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, Bytes::new()))
+                            }
+                        }
+                    })*
+                    #(#field_ids => {
+                        if pkt.payload().len() == 0 {
+                            // get
+                            let field = #event_getters .unwrap();
+                            let reply_raw = serialize(&field).unwrap();
+                            let reply_payload = Bytes::from(reply_raw);
+                            Some(SomeIpPacket::reply_packet_from(
+                                pkt,
+                                someip_codec::ReturnCode::Ok,
+                                reply_payload,
+                            ))
+                        } else {
+                            //set
+                            let params_raw = pkt.payload().as_ref();
+                            #event_setters
+                            match res {
+                                Ok(r) => {
+                                    let reply_raw = serialize(&r).unwrap();
+                                    let reply_payload = Bytes::from(reply_raw);
+                                    Some(SomeIpPacket::reply_packet_from(
+                                        pkt,
+                                        someip_codec::ReturnCode::Ok,
+                                        reply_payload,
+                                    ))
+                                }
+                                Err(e) => {
+                                    // let reply_raw = serialize(&e).unwrap();
+                                    // let reply_payload = Bytes::from(reply_raw);
+                                    Some(SomeIpPacket::error_packet_from(
+                                        pkt,
+                                        someip_codec::ReturnCode::NotOk,
+                                        Bytes::new(),
+                                    ))
+                                }
+                            }
+                        }
+                    })*
+                    _ => {
+                        Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::UnknownMethod, Bytes::new()))
+                    }
+                }
             }
         }
     };
 
     println!("dispatch function\n:{}", &dispatch_tokens.to_string());
 
-    let method: syn::TraitItemMethod = syn::parse2(dispatch_tokens).unwrap();
+    let method: syn::ItemImpl = syn::parse2(dispatch_tokens).unwrap();
     method
 }
 
+fn input_struct_name_from_method(m: &syn::TraitItemMethod) -> proc_macro2::Ident {
+    format_ident!("Method{}Inputs", m.sig.ident)
+}
 // create structures for marshalling and unmarshalling the input
 // and output parameters
 fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::ItemStruct> {
@@ -153,7 +321,7 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
                 }
             }
 
-            let struct_name = format_ident!("Method{}Inputs", m.sig.ident);
+            let struct_name = input_struct_name_from_method(m);
             let struct_tokens = quote! {
                 #[derive(Serialize, Deserialize)]
                 struct #struct_name {
@@ -202,8 +370,6 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let dispatch_handler = create_dispatch_handler(&service, &service_trait);
-
     let item_structs = create_internal_marshalling_structs(&service_trait);
 
     let new_methods = get_methods(&service);
@@ -218,7 +384,16 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
         item.to_tokens(&mut token_stream);
     }
 
-    println!("New Methods:{}", &token_stream.to_string());
+    let dispatch_handler = create_dispatch_handler(&service_trait.ident, &service, &service_trait);
+
+    let dispatch_handler_with_use = quote! {
+        use someip::*;
+        use bincode::{deserialize, serialize};
+        use bytes::Bytes;
+        #dispatch_handler
+    };
+    dispatch_handler_with_use.to_tokens(&mut token_stream);
+    println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -234,7 +409,9 @@ impl Service {
             .entries
             .iter()
             .filter_map(|e| {
-                if e.ident.to_string().as_str() == "method_ids" {
+                if e.ident.to_string().as_str() == "method_ids"
+                    || e.ident.to_string().as_str() == "fields"
+                {
                     Some(e)
                 } else {
                     None
@@ -251,14 +428,46 @@ impl Service {
         }
         None
     }
+
+    fn get_method_fields(&self) -> Vec<&Field> {
+        self.get_fields_by_type("method_ids")
+    }
+    fn get_field_fields(&self) -> Vec<&Field> {
+        self.get_fields_by_type("fields")
+    }
+    fn get_event_fields(&self) -> Vec<&Field> {
+        self.get_fields_by_type("events")
+    }
+
+    fn get_fields_by_type(&self, ty: &str) -> Vec<&Field> {
+        let service_entries: Vec<&ServiceEntry> = self
+            .entries
+            .iter()
+            .filter_map(|e| {
+                if e.ident.to_string().as_str() == ty {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut res = Vec::new();
+        for entry in &service_entries {
+            for field in &entry.fields {
+                res.push(field);
+            }
+        }
+        res
+    }
 }
 
 #[derive(Parse)]
 struct Id {
-    id: ExprLit,
+    id: syn::LitInt,
     arrow: Option<Token![=>]>,
     #[parse_if(arrow.is_some())]
-    group_id: Option<ExprLit>,
+    group_id: Option<syn::LitInt>,
 }
 
 impl Id {
@@ -266,7 +475,6 @@ impl Id {
         let mut tokens = TokenStream2::new();
         self.id.to_tokens(&mut tokens);
         let id: u32 = tokens.to_string().parse().unwrap();
-
         id
     }
 
@@ -291,6 +499,12 @@ struct Field {
     colon: Option<Token![:]>,
     #[parse_if(colon.is_some())]
     ty: Option<Type>,
+}
+
+impl Field {
+    fn id(&self) -> u32 {
+        self.id.id()
+    }
 }
 
 struct Method {
