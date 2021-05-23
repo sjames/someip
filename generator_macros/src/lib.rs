@@ -28,7 +28,7 @@ fn create_set_field_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #set_fn_name(&mut self,#field_name : #field_type ) -> Result<(), io::Error>;
+        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), io::Error>;
     };
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
@@ -237,7 +237,7 @@ fn create_dispatch_handler(
 
     let dispatch_tokens = quote! {
         impl someip::server::ServerRequestHandler for #struct_name {
-            fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            fn handle(&self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 match pkt.header().event_or_method_id() {
                     #(#method_ids => {
                         let params_raw = pkt.payload().as_ref();

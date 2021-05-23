@@ -295,7 +295,7 @@ mod tests {
         struct TestService;
 
         impl ServerRequestHandler for TestService {
-            fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+            fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket> {
                 //println!("Packet received: {:?}", message);
                 assert_eq!(message.header().service_id(), 0x45);
                 assert_eq!(message.header().event_or_method_id(), 0x01);

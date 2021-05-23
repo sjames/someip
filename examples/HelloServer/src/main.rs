@@ -76,12 +76,12 @@ struct Field1 {
 }
 
 impl HelloServerImpl {
-    fn echo_int(&mut self, param: EchoIntCallParams) -> Result<EchoIntResponseParams, io::Error> {
+    fn echo_int(&self, param: EchoIntCallParams) -> Result<EchoIntResponseParams, io::Error> {
         Ok(EchoIntResponseParams { value: param.value })
     }
 
     fn echo_string(
-        &mut self,
+        &self,
         param: EchoStringCallParams,
     ) -> Result<EchoStringResponseParams, io::Error> {
         Ok(EchoStringResponseParams { value: param.value })
@@ -94,7 +94,7 @@ impl HelloServerImpl {
 
 /// This function should be auto-generated
 impl someip::server::ServerRequestHandler for HelloServerImpl {
-    fn handle(&mut self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+    fn handle(& self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
         match pkt.header().event_or_method_id() {
             // MethodID 0 -> echo_int
             0 => {

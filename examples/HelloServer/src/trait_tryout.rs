@@ -24,8 +24,8 @@ mod interface {
         events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
         method_ids([1]echo_int, [2]echo_string))]
     pub trait HelloWorld {
-        fn echo_int(&mut self, value: i32, value1: Field1) -> Result<i32, io::Error>;
-        fn echo_string(&mut self, value: String) -> Result<String, io::Error>;
+        fn echo_int(&self, value: i32, value1: Field1) -> Result<i32, io::Error>;
+        fn echo_string(&self, value: String) -> Result<String, io::Error>;
     }
 }
 
@@ -34,20 +34,20 @@ struct HelloWorldServer {
 }
 
 impl interface::HelloWorld for HelloWorldServer {
-    fn echo_int(&mut self, value: i32, value1: interface::Field1) -> Result<i32, std::io::Error> {
+    fn echo_int(&self, value: i32, value1: interface::Field1) -> Result<i32, std::io::Error> {
         todo!()
     }
 
-    fn echo_string(&mut self, value: String) -> Result<String, std::io::Error> {
+    fn echo_string(&self, value: String) -> Result<String, std::io::Error> {
         todo!()
     }
 
-    fn set_value1(&mut self, _: interface::Field1) -> Result<(), std::io::Error> { todo!() }
+    fn set_value1(& self, _: interface::Field1) -> Result<(), std::io::Error> { todo!() }
 
     fn get_value1(&self) -> Result<&interface::Field1, std::io::Error> { todo!() }
-    fn set_value2(&mut self, _: std::string::String) -> Result<(), std::io::Error> { todo!() }
+    fn set_value2(&self, _: std::string::String) -> Result<(), std::io::Error> { todo!() }
     fn get_value2(&self) -> Result<&std::string::String, std::io::Error> { todo!() }
-    fn set_value3(&mut self, _: u32) -> Result<(), std::io::Error> { todo!() }
+    fn set_value3(&self, _: u32) -> Result<(), std::io::Error> { todo!() }
     fn get_value3(&self) -> Result<&u32, std::io::Error> { todo!() }
 
 }
