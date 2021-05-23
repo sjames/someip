@@ -348,8 +348,8 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
 
 #[proc_macro_attribute]
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
-    println!("attr: \"{}\"", attr.to_string());
-    println!("item: \"{}\"", item.to_string());
+    //println!("attr: \"{}\"", attr.to_string());
+    //println!("item: \"{}\"", item.to_string());
 
     let service = parse_macro_input!(attr as Service);
     let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
@@ -460,6 +460,8 @@ impl Service {
         }
         res
     }
+
+    //fn validate(&self) -> Option<>
 }
 
 #[derive(Parse)]
