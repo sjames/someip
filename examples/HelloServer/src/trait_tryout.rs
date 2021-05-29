@@ -1,7 +1,7 @@
 use bincode::serialize;
 use serde::{Serialize, Deserialize};
-use someip::{FieldError, config::Configuration, server::Server, tasks::ConnectionInfo, SomeIpHeader};
-use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket};
+use someip::{FieldError, SomeIpHeader, MethodError, client::Client, config::Configuration, server::Server, tasks::ConnectionInfo};
+use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket, trait_tryout::interface::HelloWorldError};
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
 use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str, sync::{Arc, Mutex}, time::Duration};
@@ -39,6 +39,8 @@ mod interface {
         FooError(i32),
         #[error("Bar error")]
         BarError(String),
+        #[error("Connection Error")]
+        ConnectionError,
     }
 
     #[service(fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
@@ -51,6 +53,71 @@ mod interface {
 
     pub struct HelloWorldServer {
 
+    }
+}
+
+#[derive(Serialize,Deserialize)]
+struct InputParams {
+    value : i32,
+    value1: interface::Field1,
+}
+
+pub struct HelloWorldProxy {
+    // the client handle
+    client : someip::client::Client,
+}
+
+impl HelloWorldProxy {
+
+    pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+        HelloWorldProxy {
+            client : someip::client::Client::new(service_id, client_id, config),
+        }
+    }
+
+    pub async fn echo_int(&self, value: i32, value1: interface::Field1) -> Result<i32, MethodError<interface::HelloWorldError>> {
+        let input_params = InputParams {
+            value,
+            value1
+        };
+
+        let mut header = SomeIpHeader::default();
+        header.set_method_id(1);
+
+        //let params = Serialize!();
+        let message = SomeIpPacket::new(header, Bytes::new());
+        let res = self.client.call(message,std::time::Duration::from_millis(1000)).await;
+
+        match res {
+            Ok(someip::client::ReplyData::Completed(pkt)) => {
+                match pkt.header().message_type {
+                    someip::someip_codec::MessageType::Response => {
+                        Ok(0)
+                    }
+                    someip::someip_codec::MessageType::Request => {
+                        Err(MethodError::ConnectionError)
+                    }
+                    someip::someip_codec::MessageType::RequestNoReturn => {
+                        Err(MethodError::ConnectionError)
+                    }
+                    someip::someip_codec::MessageType::Notification => {
+                        Err(MethodError::ConnectionError)
+                    }
+                    someip::someip_codec::MessageType::Error => {
+                        Err(MethodError::ConnectionError)
+                    }
+                }
+            } 
+            Ok(someip::client::ReplyData::Cancelled) => {
+                Err(MethodError::ConnectionError)
+            }
+            Ok(someip::client::ReplyData::Pending) => {
+                panic!("This should not happen");
+            }
+            Err(e) => {
+                Err(MethodError::ConnectionError)
+            }
+        }
     }
 }
 
@@ -71,11 +138,11 @@ impl someip::server::ServerRequestHandler for HelloWorldServer {
 }
 
 impl interface::HelloWorld for interface::HelloWorldServer {
-    fn echo_int(&self, value: i32, value1: interface::Field1) -> Result<i32, interface::HelloWorldError> {
+    fn echo_int(&self, value: i32, value1: interface::Field1) -> Result<i32, HelloWorldError> {
         Ok(value)
     }
 
-    fn echo_string(&self, value: String) -> Result<String, interface::HelloWorldError> {
+    fn echo_string(&self, value: String) -> Result<String, HelloWorldError> {
         Ok(value)
     }
 

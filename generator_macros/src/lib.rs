@@ -7,6 +7,75 @@ use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
 use syn::punctuated::Punctuated;
 use syn::{Expr, Signature, *};
 
+#[proc_macro_attribute]
+pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
+    //println!("attr: \"{}\"", attr.to_string());
+    //println!("item: \"{}\"", item.to_string());
+
+    let service = parse_macro_input!(attr as Service);
+    let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
+
+    for entry in &service.entries {
+        //println!("Entry");
+        //println!("  ident:{}", entry.ident.to_string());
+        let entry_name = entry.ident.to_string();
+        if (entry_name.as_str() != "fields")
+            && (entry_name.as_str() != "events")
+            && (entry_name.as_str() != "method_ids")
+        {
+            return quote_spanned! {
+                entry.ident.span() =>
+                compile_error!("unexpected entry. Expected `fields`, `events` or `method_ids`");
+            }
+            .into();
+        }
+    }
+
+    add_super_trait(&mut service_trait);
+
+    let item_structs = create_internal_marshalling_structs(&service_trait);
+
+    let new_methods = get_methods(&service);
+    for m in new_methods {
+        service_trait.items.push(syn::TraitItem::Method(m));
+    }
+
+    let mut token_stream = TokenStream2::new();
+    service_trait.to_tokens(&mut token_stream);
+
+    for item in item_structs {
+        item.to_tokens(&mut token_stream);
+    }
+
+    let dispatch_handler = create_dispatch_handler(&service_trait.ident, &service, &service_trait);
+
+    let dispatch_handler_with_use = quote! {
+        use someip::*;
+        use bincode::{deserialize, serialize};
+        use bytes::Bytes;
+        #dispatch_handler
+    };
+    dispatch_handler_with_use.to_tokens(&mut token_stream);
+
+    let proxy_tokens = create_proxy(&service, &service_trait);
+    proxy_tokens.to_tokens(&mut token_stream);
+
+    println!("GENERATED:{}", &token_stream.to_string());
+    token_stream.into()
+}
+
+fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let struct_name = format_ident!("{}Proxy", item_trait.ident);
+
+    let tokens = quote! {
+        pub struct #struct_name {
+
+        }
+    };
+
+    tokens.into()
+}
+
 fn create_get_field_method(field: &Field) -> syn::TraitItemMethod {
     let get_fn_name = format_ident!("get_{}", field.name);
     let field_type = &field.ty;
@@ -365,59 +434,6 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
         }
     }
     item_structs
-}
-
-#[proc_macro_attribute]
-pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
-    //println!("attr: \"{}\"", attr.to_string());
-    //println!("item: \"{}\"", item.to_string());
-
-    let service = parse_macro_input!(attr as Service);
-    let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
-
-    for entry in &service.entries {
-        //println!("Entry");
-        //println!("  ident:{}", entry.ident.to_string());
-        let entry_name = entry.ident.to_string();
-        if (entry_name.as_str() != "fields")
-            && (entry_name.as_str() != "events")
-            && (entry_name.as_str() != "method_ids")
-        {
-            return quote_spanned! {
-                entry.ident.span() =>
-                compile_error!("unexpected entry. Expected `fields`, `events` or `method_ids`");
-            }
-            .into();
-        }
-    }
-
-    add_super_trait(&mut service_trait);
-
-    let item_structs = create_internal_marshalling_structs(&service_trait);
-
-    let new_methods = get_methods(&service);
-    for m in new_methods {
-        service_trait.items.push(syn::TraitItem::Method(m));
-    }
-
-    let mut token_stream = TokenStream2::new();
-    service_trait.to_tokens(&mut token_stream);
-
-    for item in item_structs {
-        item.to_tokens(&mut token_stream);
-    }
-
-    let dispatch_handler = create_dispatch_handler(&service_trait.ident, &service, &service_trait);
-
-    let dispatch_handler_with_use = quote! {
-        use someip::*;
-        use bincode::{deserialize, serialize};
-        use bytes::Bytes;
-        #dispatch_handler
-    };
-    dispatch_handler_with_use.to_tokens(&mut token_stream);
-    println!("GENERATED:{}", &token_stream.to_string());
-    token_stream.into()
 }
 
 #[derive(Parse)]
