@@ -67,13 +67,49 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
 
-    let tokens = quote! {
+    let mut tokens_struct = quote! {
         pub struct #struct_name {
+            client : someip::client::Client,
+        }
 
+        impl #struct_name {
+            pub fn new(service_id: u16, client_id: u16, config: someip::Configuration) -> Self {
+                #struct_name {
+                    client : someip::client::Client::new(service_id, client_id, config),
+                }
+            }
         }
     };
 
-    tokens.into()
+    let id_idents = get_method_ids(service);
+
+    let methods: Vec<TokenStream2> = id_idents
+        .iter()
+        .map(|(i, ident)| get_client_method_by_ident(*i, ident, item_trait))
+        .collect();
+
+    let mut tokens_impl = quote! {
+        impl #struct_name {
+            #(#methods)*
+        }
+    };
+
+    tokens_struct.extend(tokens_impl);
+
+    tokens_struct.into()
+}
+
+fn get_client_method_by_ident(id: u32, ident: &Ident, item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let method = find_method_by_ident(ident, item_trait).expect("Expected to find method");
+    let params = &method.sig.inputs;
+
+    let tokens = quote! {
+        pub async fn #ident ( #params ) -> Result<i32, MethodError<HelloWorldError>> {
+            todo!()
+        }
+    };
+
+    tokens
 }
 
 fn create_get_field_method(field: &Field) -> syn::TraitItemMethod {
@@ -157,6 +193,20 @@ fn find_method_by_name<'a>(
     for item in &item_trait.items {
         if let syn::TraitItem::Method(m) = item {
             if m.sig.ident.to_string().as_str() == method_name {
+                return Some(m);
+            }
+        }
+    }
+    None
+}
+
+fn find_method_by_ident<'a>(
+    method_name: &Ident,
+    item_trait: &'a syn::ItemTrait,
+) -> Option<&'a syn::TraitItemMethod> {
+    for item in &item_trait.items {
+        if let syn::TraitItem::Method(m) = item {
+            if &m.sig.ident == method_name {
                 return Some(m);
             }
         }
