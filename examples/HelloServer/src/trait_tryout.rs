@@ -1,10 +1,13 @@
+use bincode::serialize;
 use serde::{Serialize, Deserialize};
-use someip::{FieldError, config::Configuration, server::Server, tasks::ConnectionInfo};
+use someip::{FieldError, config::Configuration, server::Server, tasks::ConnectionInfo, SomeIpHeader};
 use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket};
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
 use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str, sync::{Arc, Mutex}, time::Duration};
 use tokio::runtime::Runtime;
+
+use self::interface::HelloWorldServer;
 
 
 mod interface {
@@ -61,6 +64,12 @@ impl Default for interface::HelloWorldServer {
     }
 }
 
+impl someip::server::ServerRequestHandler for HelloWorldServer {
+    fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+        interface::dispatcher::dispatch(self, message)
+    }
+}
+
 impl interface::HelloWorld for interface::HelloWorldServer {
     fn echo_int(&self, value: i32, value1: interface::Field1) -> Result<i32, interface::HelloWorldError> {
         Ok(value)
@@ -80,7 +89,7 @@ impl interface::HelloWorld for interface::HelloWorldServer {
 
 }
 
-fn test_basic() {
+pub fn start_server() {
 
 
     let rt = Runtime::new().unwrap();
@@ -100,7 +109,7 @@ fn test_basic() {
                         }
                         ConnectionInfo::ConnectionDropped(_i) => {}
                         ConnectionInfo::NewUdpConnection((sender, i)) => {
-                            todo!()
+                            println!("Udp connection established");
                         }
                     }
                 }
@@ -123,16 +132,19 @@ fn test_basic() {
         let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
         let mut tx_connection = SomeIPCodec::default().connect(&addr).await.unwrap();
 
-       /// let mut header = SomeIpHeader::default();
-       // header.set_service_id(0x45);
-       // header.set_method_id(0x01);
+        let mut header = SomeIpHeader::default();
+       header.set_service_id(45);
+       header.set_method_id(0x01);
+       let val:i32 = 42;
+       let reply_raw = serialize(& val).unwrap();
 
-       // let payload = BytesMut::new().freeze();
-        //let packet = SomeIpPacket::new(header, payload);
+       let payload = Bytes::from(reply_raw);
+        let packet = SomeIpPacket::new(header, payload);
 
-       // tx_connection.send(packet).await;
+       tx_connection.send(packet).await;
 
         println!("Sending terminate");
+        tokio::time::sleep(Duration::from_millis(2000)).await;
         //let res = &mut handle.terminate().await;
     });
 }

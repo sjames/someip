@@ -1,9 +1,9 @@
 use bytes::{Buf, Bytes, BytesMut};
-use someip_parse::{ReadError, SomeIpHeader, SomeIpHeaderSlice};
+use someip_parse::{ReadError, SomeIpHeaderSlice};
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Encoder;
 
-pub use someip_parse::{MessageType, ReturnCode};
+pub use someip_parse::{MessageType, ReturnCode, SomeIpHeader};
 // default service discovery port
 pub const SD_PORT: u32 = 30490;
 

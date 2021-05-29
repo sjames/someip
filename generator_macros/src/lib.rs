@@ -111,8 +111,13 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
         .collect();
 
     let call_method = quote! {
-        let in_param : #input_struct_name = deserialize(params_raw).unwrap();
-        let res = self.#method_name(#(in_param.#params),*);
+        let res_in_param : Result<#input_struct_name,_> = deserialize(params_raw);
+        if res_in_param.is_err() {
+            log::error!("Deserialization error for service:{} method:{}", pkt.header().service_id(), pkt.header().event_or_method_id());
+            return Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, Bytes::new()));
+        }
+        let in_param = res_in_param.unwrap();
+        let res = this.#method_name(#(in_param.#params),*);
     };
 
     call_method
@@ -133,7 +138,7 @@ fn create_field_getter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> Toke
         .collect();
 
     let call_method = quote! {
-        self.#method_name()
+        this.#method_name()
     };
 
     call_method
@@ -157,7 +162,7 @@ fn create_field_setter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> Toke
 
     let call_method = quote! {
         let field: #field_type = deserialize(params_raw).unwrap();
-        let res = self.#method_name (field);
+        let res = this.#method_name (field);
     };
 
     call_method
@@ -204,7 +209,7 @@ fn create_dispatch_handler(
     struct_name: &Ident,
     service: &Service,
     item_trait: &syn::ItemTrait,
-) -> syn::ItemImpl {
+) -> syn::Item {
     let method_id_name = get_method_ids(service);
     let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
@@ -236,10 +241,11 @@ fn create_dispatch_handler(
     }
 
     // We expect that there is a struct (or enum with the name  <trait>Server)
-    let server_struct_name = format_ident!("{}Server", struct_name);
+    let server_struct_name = format_ident!("{}ServerDispatcher", struct_name);
     let dispatch_tokens = quote! {
-        impl someip::server::ServerRequestHandler for #server_struct_name {
-            fn handle(&self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+        pub mod dispatcher {
+        use super::*;
+            pub fn dispatch(this:&impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 match pkt.header().event_or_method_id() {
                     #(#method_ids => {
                         let params_raw = pkt.payload().as_ref();
@@ -299,12 +305,12 @@ fn create_dispatch_handler(
                     }
                 }
             }
-        }
+        }// mod dispatcher
     };
 
     println!("dispatch function\n:{}", &dispatch_tokens.to_string());
 
-    let method: syn::ItemImpl = syn::parse2(dispatch_tokens).unwrap();
+    let method: syn::Item = syn::parse2(dispatch_tokens).unwrap();
     method
 }
 
