@@ -15,7 +15,7 @@ fn create_get_field_method(field: &Field) -> syn::TraitItemMethod {
         /// by the server. The storage of the field may be implementation
         /// depentant. The method is called by the underlying binding when
         /// a client requests a property.
-        fn #get_fn_name(&self) -> Result<&#field_type, io::Error>;
+        fn #get_fn_name(&self) -> Result<&#field_type, someip::FieldError>;
     };
 
     //let parse_buffer: ParseBuffer = method_tokens.into();
@@ -28,7 +28,7 @@ fn create_set_field_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), io::Error>;
+        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), someip::FieldError>;
     };
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
@@ -235,8 +235,10 @@ fn create_dispatch_handler(
         event_setters.push(getter_tokens);
     }
 
+    // We expect that there is a struct (or enum with the name  <trait>Server)
+    let server_struct_name = format_ident!("{}Server", struct_name);
     let dispatch_tokens = quote! {
-        impl someip::server::ServerRequestHandler for #struct_name {
+        impl someip::server::ServerRequestHandler for #server_struct_name {
             fn handle(&self, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 match pkt.header().event_or_method_id() {
                     #(#method_ids => {
@@ -249,7 +251,9 @@ fn create_dispatch_handler(
                                 Some(SomeIpPacket::reply_packet_from(pkt, someip_codec::ReturnCode::Ok, reply_payload))
                             }
                             Err(e) => {
-                                Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, Bytes::new()))
+                                let error_raw = serialize(&e).unwrap();
+                                let error_payload = Bytes::from(error_raw);
+                                Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, error_payload))
                             }
                         }
                     })*
@@ -307,6 +311,17 @@ fn create_dispatch_handler(
 fn input_struct_name_from_method(m: &syn::TraitItemMethod) -> proc_macro2::Ident {
     format_ident!("Method{}Inputs", m.sig.ident)
 }
+
+// Add a super trait to this trait item.
+fn add_super_trait(item_trait: &mut syn::ItemTrait) {
+    let tokens = quote! {
+        someip::server::ServerRequestHandler
+    };
+    let super_trait: syn::TypeParamBound = syn::parse2(tokens).unwrap();
+
+    item_trait.supertraits.push(super_trait);
+}
+
 // create structures for marshalling and unmarshalling the input
 // and output parameters
 fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::ItemStruct> {
@@ -369,6 +384,8 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
         }
     }
+
+    add_super_trait(&mut service_trait);
 
     let item_structs = create_internal_marshalling_structs(&service_trait);
 
