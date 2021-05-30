@@ -5,6 +5,7 @@ use quote::{format_ident, quote, quote_spanned, ToTokens};
 use std::str::FromStr;
 use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::{Expr, Signature, *};
 
 #[proc_macro_attribute]
@@ -99,16 +100,72 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
     tokens_struct.into()
 }
 
+fn get_result_types(p: &syn::TypePath) -> Option<(syn::GenericArgument, syn::GenericArgument)> {
+    if let Some(first_segment) = p.path.segments.iter().take(1).next() {
+        if first_segment.ident != "Result" {
+            None
+        } else {
+            if let syn::PathArguments::AngleBracketed(angle_bracketed_args) =
+                &first_segment.arguments
+            {
+                let mut iter = angle_bracketed_args.args.iter();
+                if let Some(success) = iter.next() {
+                    if let Some(failure) = iter.next() {
+                        Some((success.clone(), failure.clone()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    } else {
+        None
+    }
+}
+
 fn get_client_method_by_ident(id: u32, ident: &Ident, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let method = find_method_by_ident(ident, item_trait).expect("Expected to find method");
     let params = &method.sig.inputs;
 
+    let maybe_return_types = match method.sig.output.clone() {
+        ReturnType::Type(_a, t) => {
+            if let syn::Type::Path(p) = *t.clone() {
+                if let Some((success_type, failure_type)) = get_result_types(&p) {
+                    println!("Found return type : {:?} {:?}", success_type, failure_type);
+                    Some((success_type, failure_type))
+                } else {
+                    return quote_spanned! {
+                        t.span() =>
+                        compile_error!("Return type for SOME/IP Methods should be empty or Result");
+                    }
+                    .into();
+                }
+            } else {
+                return quote_spanned! {
+                    t.span() =>
+                    compile_error!("Unsupported Return type ");
+                }
+                .into();
+            }
+        }
+        ReturnType::Default => None,
+    };
+    let return_tokens = if let Some((success, failure)) = &maybe_return_types {
+        quote! {
+            -> Result<#success, MethodError<#failure>>
+        }
+    } else {
+        quote! {}
+    };
     let tokens = quote! {
-        pub async fn #ident ( #params ) -> Result<i32, MethodError<HelloWorldError>> {
+        pub async fn #ident ( #params ) #return_tokens {
             todo!()
         }
     };
-
     tokens
 }
 
