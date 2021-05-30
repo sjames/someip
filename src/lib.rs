@@ -9,7 +9,7 @@ pub mod tasks;
 
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
-pub use someip_codec::{SomeIpHeader, SomeIpPacket};
+pub use someip_codec::{MessageType, SomeIpHeader, SomeIpPacket};
 
 #[cfg(test)]
 mod tests {

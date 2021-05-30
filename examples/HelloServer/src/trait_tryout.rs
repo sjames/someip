@@ -4,7 +4,7 @@ use someip::{FieldError, SomeIpHeader, MethodError, client::Client, config::Conf
 use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket, trait_tryout::interface::HelloWorldError};
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
-use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str, sync::{Arc, Mutex}, time::Duration};
+use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str, sync::{Arc, Mutex, RwLock}, time::Duration};
 use tokio::runtime::Runtime;
 
 use self::interface::HelloWorldServer;
@@ -19,7 +19,7 @@ mod interface {
 
 
 
-    #[derive(Serialize,Deserialize)]
+    #[derive(Serialize,Deserialize, Default)]
     pub struct Field1 {
         a: u32,
         b: u16,
@@ -45,10 +45,11 @@ mod interface {
 
     #[service(fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
-        method_ids([1]echo_int, [2]echo_string))]
+        method_ids([1]echo_int, [2]echo_string, [3]no_reply))]
     pub trait HelloWorld {
         fn echo_int(&self, value: i32, value1: Field1) -> Result<i32, HelloWorldError>;
         fn echo_string(&self, value: String) -> Result<String, HelloWorldError>;
+        fn no_reply(&self, value: Field1);
     }
 
     pub struct HelloWorldServer {
@@ -67,6 +68,7 @@ pub struct HelloWorldProxy {
     client : someip::client::Client,
 }
 
+/* 
 impl HelloWorldProxy {
 
     pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
@@ -120,7 +122,7 @@ impl HelloWorldProxy {
         }
     }
 }
-
+*/
 
 
 impl Default for interface::HelloWorldServer {
@@ -154,6 +156,10 @@ impl interface::HelloWorld for interface::HelloWorldServer {
     fn set_value3(&self, _: u32) -> Result<(), FieldError> { Ok(()) }
     fn get_value3(&self) -> Result<&u32, FieldError> { todo!() }
 
+    fn no_reply(&self, value: interface::Field1) {
+        println!("No reply");
+    }
+
 }
 
 pub fn start_server() {
@@ -164,6 +170,8 @@ pub fn start_server() {
 
     let at = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
     println!("Test");
+
+  
     let _result = rt.block_on(async {
         let (tx, mut rx) = Server::create_notify_channel(1);
 
@@ -196,20 +204,29 @@ pub fn start_server() {
 
         tokio::time::sleep(Duration::from_millis(20)).await;
 
+        let config = Configuration::default();
+        let proxy = Arc::new(RwLock::new(Box::new(interface::HelloWorldProxy::new(45, 0, config))));
         let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
-        let mut tx_connection = SomeIPCodec::default().connect(&addr).await.unwrap();
+        let proxy_for_task = proxy.clone();
+  
+        tokio::spawn(async move { interface::HelloWorldProxy::run(proxy_for_task,addr).await});
 
-        let mut header = SomeIpHeader::default();
-       header.set_service_id(45);
-       header.set_method_id(0x01);
-       let val:i32 = 42;
-       let reply_raw = serialize(& val).unwrap();
+        //tokio::spawn(async move {
+            // client stuff
+            let proxy = proxy.read().unwrap();
+            let res = proxy.echo_string(String::from("Hello World")).await;
+            println!("Return value: {:?}", res);
+            let res = proxy.echo_string(String::from("Hello World2")).await;
+            println!("Return value: {:?}", res);
+            let res = proxy.no_reply(interface::Field1::default()).await;
 
-       let payload = Bytes::from(reply_raw);
-        let packet = SomeIpPacket::new(header, payload);
+            //let field1 = proxy.value1.get();
+            //let err = proxy.value1.set(interface::Field1::default()).await;
+            //proxy.value1.on_change(|v|{/*  changed value1 */});
+            //proxy.on_event1(|e|{ /*  do something with the event*/})
 
-       tx_connection.send(packet).await;
-
+       // });
+ 
         println!("Sending terminate");
         tokio::time::sleep(Duration::from_millis(2000)).await;
         //let res = &mut handle.terminate().await;

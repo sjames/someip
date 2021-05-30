@@ -5,11 +5,11 @@ impl<T> Field<T> {
         Self(val)
     }
 
-    pub fn set(&mut self, val: T) {
+    pub async fn set(&mut self, val: T) {
         self.0 = val;
     }
 
-    pub fn get(&self) -> &T {
+    pub async fn get(&self) -> &T {
         &self.0
     }
 }

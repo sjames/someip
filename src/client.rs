@@ -80,27 +80,29 @@ impl Client {
         tcp_client_dispatcher(&config, to, dispatch_rx, pending_calls).await
     }
 }
-
+//std::sync::Arc<std::sync::RwLock<someip::client::Client>>
 impl Client {
     pub async fn call(
-        &self,
+        this: Arc<RwLock<Self>>,
         mut message: SomeIpPacket,
         timeout: std::time::Duration,
     ) -> Result<ReplyData, io::Error> {
         //let pending_calls = self.pending_calls.lock().unwrap();
 
-        let session_id = self
+        let this = this.read().unwrap();
+
+        let session_id = this
             .session_id
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((self.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+        let request_id = (((this.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
         message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(self.service_id);
+        message.header_mut().set_service_id(this.service_id);
 
         println!("Pkt: {:?}", message.header());
 
         // add to pending call list
         {
-            let mut pending_calls = self.pending_calls.lock().unwrap();
+            let mut pending_calls = this.pending_calls.lock().unwrap();
             if let Some(p) = pending_calls.insert(
                 request_id,
                 (std::time::Instant::now(), timeout, ReplyData::Pending, None),
@@ -112,7 +114,7 @@ impl Client {
             }
         }
 
-        self.dispatch_tx
+        this.dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
             .map_err(|e| {
@@ -121,26 +123,33 @@ impl Client {
                     "Unable to send packet to dispatcher",
                 )
             })?;
-        let future = Reply::new(self.pending_calls.clone(), request_id);
+        let future = Reply::new(this.pending_calls.clone(), request_id);
         Ok(future.await)
     }
 
-    pub fn call_noreply(&self, mut message: SomeIpPacket) -> Result<(), io::Error> {
-        let session_id = self
+    pub async fn call_noreply(
+        this: Arc<RwLock<Self>>,
+        mut message: SomeIpPacket,
+    ) -> Result<(), io::Error> {
+        log::debug!("call_noreply");
+        let this = this.read().unwrap();
+        let session_id = this
             .session_id
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((self.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+        let request_id = (((this.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
         message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(self.service_id);
+        message.header_mut().set_service_id(this.service_id);
 
-        self.dispatch_tx
-            .blocking_send(DispatcherMessage::Call(message))
+        this.dispatch_tx
+            .send(DispatcherMessage::Call(message))
+            .await
             .map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::BrokenPipe,
                     "Unable to send packet to dispatcher",
                 )
-            })
+            })?;
+        Ok(())
     }
 }
 
@@ -202,8 +211,7 @@ async fn tcp_client_dispatcher(
             .await
         {
             println!("New client connection");
-            let mut session_id: u16 = 0;
-            //let mut pending_calls: Vec<(u32)> = Vec::new();
+            //let mut session_id: u16 = 0;
 
             let (mut tx, mut rx) = tcp_stream.split();
             loop {
@@ -211,7 +219,8 @@ async fn tcp_client_dispatcher(
                     Some(message) = dispatch_rx.recv() => {
                         match message {
                             DispatcherMessage::Call(pkt) => {
-                                if pkt.header().message_type != MessageType::Request {
+                                if pkt.header().message_type != MessageType::Request &&
+                                pkt.header().message_type != MessageType::RequestNoReturn {
                                     log::error!("Invalid request type. Considering this fatal");
                                     panic!("Bad message type");
                                 }
@@ -357,14 +366,14 @@ mod tests {
             header.set_method_or_event_id(1);
             header.message_type = MessageType::Request;
 
-            let client = client.read().unwrap();
+            //let client = client.read().unwrap();
 
-            let res = client
-                .call(
-                    SomeIpPacket::new(header, Bytes::new()),
-                    std::time::Duration::from_millis(500),
-                )
-                .await;
+            let res = Client::call(
+                client,
+                SomeIpPacket::new(header, Bytes::new()),
+                std::time::Duration::from_millis(500),
+            )
+            .await;
 
             println!("Reply:{:?}", res);
         });
