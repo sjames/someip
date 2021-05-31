@@ -69,23 +69,23 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
 
     let mut tokens_struct = quote! {
+        #[derive(Clone)]
         pub struct #struct_name {
-            client : std::sync::Arc<std::sync::RwLock<someip::client::Client>>,
+            client : someip::client::Client,
         }
 
         impl #struct_name {
             pub fn new(service_id: u16, client_id: u16, config: someip::Configuration) -> Self {
                 #struct_name {
-                    client : std::sync::Arc::new(std::sync::RwLock::new(someip::client::Client::new(service_id, client_id, config))),
+                    client :someip::client::Client::new(service_id, client_id, config),
                 }
             }
-            pub async fn run(this: std::sync::Arc<std::sync::RwLock<Box<Self>>>, to: std::net::SocketAddr) -> Result<(), io::Error> {
+            pub async fn run(self, to: std::net::SocketAddr) -> Result<(), io::Error> {
                 let client = {
-                    let this = this.read().unwrap();
-                    let client = this.client.clone();
+                    let client = self.client.clone();
                     client
                 };
-                someip::client::Client::run_static(client, to).await
+                client.run(to).await
             }
         }
     };
@@ -202,8 +202,8 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     let call_and_reply_tokens = if need_reply {
         let (success_type, failure_type) = maybe_return_types.unwrap();
         quote! {
-            let res = someip::client::Client::call(self.client.clone(),packet,std::time::Duration::from_millis(#timeout_ms)).await;
-            //let res = client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
+            //let res = someip::client::Client::call(self.client.clone(),packet,std::time::Duration::from_millis(#timeout_ms)).await;
+            let res = self.client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
 
             match res {
                 Ok(someip::client::ReplyData::Completed(pkt)) => {
@@ -256,7 +256,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     } else {
         quote! {
             //let client = self.client.read().unwrap();
-            if let Err(_e) = someip::client::Client::call_noreply(self.client.clone(),packet).await {
+            if let Err(_e) = self.client.call_noreply(packet).await {
                 log::error!("call_noreply failed");
                 Err(())
             } else {

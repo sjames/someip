@@ -202,10 +202,11 @@ pub fn start_server() {
             }
         });
 
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        //tokio::time::sleep(Duration::from_millis(20)).await;
+        async_std::task::sleep(Duration::from_millis(20)).await;
 
         let config = Configuration::default();
-        let proxy = Arc::new(RwLock::new(Box::new(interface::HelloWorldProxy::new(45, 0, config))));
+        let proxy = interface::HelloWorldProxy::new(45, 0, config);
         let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
         let proxy_for_task = proxy.clone();
   
@@ -213,7 +214,7 @@ pub fn start_server() {
 
         //tokio::spawn(async move {
             // client stuff
-            let proxy = proxy.read().unwrap();
+           // let proxy = proxy.read().unwrap();
             let res = proxy.echo_string(String::from("Hello World")).await;
             println!("Return value: {:?}", res);
             let res = proxy.echo_string(String::from("Hello World2")).await;
@@ -225,7 +226,7 @@ pub fn start_server() {
             //proxy.value1.on_change(|v|{/*  changed value1 */});
             //proxy.on_event1(|e|{ /*  do something with the event*/})
 
-       // });
+        //});
  
         println!("Sending terminate");
         tokio::time::sleep(Duration::from_millis(2000)).await;

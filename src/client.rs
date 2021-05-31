@@ -38,11 +38,33 @@ type PendingCalls = Arc<
     >,
 >;
 
+#[derive(Clone)]
 pub struct Client {
-    config: Configuration,
-
+    //config: Configuration,
     /// The pending calls structure.
     ///
+    //pending_calls: PendingCalls,
+    //dispatch_tx: Sender<DispatcherMessage>,
+    //dispatch_rx: Arc<Mutex<Option<Receiver<DispatcherMessage>>>>,
+    //service_id: u16,
+    //client_id: u16,
+    //session_id: AtomicU16,
+    inner: Arc<RwLock<ClientInner>>,
+}
+
+impl Client {
+    fn inner_mut(&self) -> std::sync::RwLockWriteGuard<'_, ClientInner> {
+        let inner = self.inner.write().unwrap();
+        inner
+    }
+    fn inner(&self) -> std::sync::RwLockReadGuard<'_, ClientInner> {
+        let inner = self.inner.read().unwrap();
+        inner
+    }
+}
+
+struct ClientInner {
+    config: Configuration,
     pending_calls: PendingCalls,
     dispatch_tx: Sender<DispatcherMessage>,
     dispatch_rx: Arc<Mutex<Option<Receiver<DispatcherMessage>>>>,
@@ -51,10 +73,10 @@ pub struct Client {
     session_id: AtomicU16,
 }
 
-impl Client {
+impl ClientInner {
     pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
         let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
-        Self {
+        ClientInner {
             config,
             pending_calls: Arc::new(Mutex::new(HashMap::new())),
             dispatch_tx,
@@ -64,45 +86,70 @@ impl Client {
             service_id,
         }
     }
+}
 
-    pub async fn run(&self, to: SocketAddr) -> Result<(), io::Error> {
-        let dispatch_rx = self.dispatch_rx.lock().unwrap().take().unwrap();
-        tcp_client_dispatcher(&self.config, to, dispatch_rx, self.pending_calls.clone()).await
+impl Client {
+    pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+        let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
+        Self {
+            //config,
+            //pending_calls: Arc::new(Mutex::new(HashMap::new())),
+            //dispatch_tx,
+            //dispatch_rx: Arc::new(Mutex::new(Some(dispatch_rx))),
+            //client_id,
+            //session_id: AtomicU16::new(0),
+            //service_id,
+            inner: Arc::new(RwLock::new(ClientInner::new(service_id, client_id, config))),
+        }
     }
 
-    pub async fn run_static(this: Arc<RwLock<Client>>, to: SocketAddr) -> Result<(), io::Error> {
+    pub async fn run(&self, to: SocketAddr) -> Result<(), io::Error> {
         let (config, dispatch_rx, pending_calls) = {
-            let client = this.read().unwrap();
-            let dispatch_rx = client.dispatch_rx.lock().unwrap().take().unwrap();
-            let config = client.config.clone();
-            (config, dispatch_rx, client.pending_calls.clone())
+            let inner = self.inner();
+            //let client = this.read().unwrap();
+            let dispatch_rx = inner.dispatch_rx.lock().unwrap().take().unwrap();
+            let config = inner.config.clone();
+            (config, dispatch_rx, inner.pending_calls.clone())
         };
         tcp_client_dispatcher(&config, to, dispatch_rx, pending_calls).await
     }
+
+    /*
+    pub async fn run_static(&self, to: SocketAddr) -> Result<(), io::Error> {
+        let (config, dispatch_rx, pending_calls) = {
+            let inner = self.inner();
+            //let client = this.read().unwrap();
+            let dispatch_rx = inner.dispatch_rx.lock().unwrap().take().unwrap();
+            let config = inner.config.clone();
+            (config, dispatch_rx, inner.pending_calls.clone())
+        };
+        tcp_client_dispatcher(&config, to, dispatch_rx, pending_calls).await
+    }
+    */
 }
 //std::sync::Arc<std::sync::RwLock<someip::client::Client>>
 impl Client {
     pub async fn call(
-        this: Arc<RwLock<Self>>,
+        &self,
         mut message: SomeIpPacket,
         timeout: std::time::Duration,
     ) -> Result<ReplyData, io::Error> {
         //let pending_calls = self.pending_calls.lock().unwrap();
 
-        let this = this.read().unwrap();
+        let inner = self.inner();
 
-        let session_id = this
+        let session_id = inner
             .session_id
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((this.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+        let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
         message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(this.service_id);
+        message.header_mut().set_service_id(inner.service_id);
 
         println!("Pkt: {:?}", message.header());
 
         // add to pending call list
         {
-            let mut pending_calls = this.pending_calls.lock().unwrap();
+            let mut pending_calls = inner.pending_calls.lock().unwrap();
             if let Some(p) = pending_calls.insert(
                 request_id,
                 (std::time::Instant::now(), timeout, ReplyData::Pending, None),
@@ -114,7 +161,8 @@ impl Client {
             }
         }
 
-        this.dispatch_tx
+        inner
+            .dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
             .map_err(|e| {
@@ -123,24 +171,23 @@ impl Client {
                     "Unable to send packet to dispatcher",
                 )
             })?;
-        let future = Reply::new(this.pending_calls.clone(), request_id);
+        let future = Reply::new(inner.pending_calls.clone(), request_id);
         Ok(future.await)
     }
 
-    pub async fn call_noreply(
-        this: Arc<RwLock<Self>>,
-        mut message: SomeIpPacket,
-    ) -> Result<(), io::Error> {
+    pub async fn call_noreply(&self, mut message: SomeIpPacket) -> Result<(), io::Error> {
         log::debug!("call_noreply");
-        let this = this.read().unwrap();
-        let session_id = this
+        let inner = self.inner();
+        //let this = this.read().unwrap();
+        let session_id = inner
             .session_id
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((this.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+        let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
         message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(this.service_id);
+        message.header_mut().set_service_id(inner.service_id);
 
-        this.dispatch_tx
+        inner
+            .dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
             .map_err(|e| {
@@ -183,7 +230,7 @@ impl Future for Reply {
             }
         } else {
             // there is no entry for this pending call.
-            panic!("Unexpected - no pending call entry for this future");
+            log::error!("Unexpected - no pending call entry for this future");
             Poll::Ready(ReplyData::Cancelled)
         }
     }
@@ -290,7 +337,7 @@ mod tests {
         let config = Configuration::default();
 
         let client_config = config.clone();
-        let client = Arc::new(RwLock::new(Client::new(0x45, 10, client_config)));
+        let client = Client::new(0x45, 10, client_config);
 
         let rt = Runtime::new().unwrap();
 
@@ -358,7 +405,8 @@ mod tests {
             tokio::spawn(async move {
                 //fooo bar
 
-                let _res = Client::run_static(run_client, to).await; // client.run(at).await;
+                //let _res = Client::run_static(run_client, to).await; // client.run(at).await;
+                let _res = run_client.run(to).await;
             });
 
             let mut header = SomeIpHeader::default();
@@ -368,12 +416,12 @@ mod tests {
 
             //let client = client.read().unwrap();
 
-            let res = Client::call(
-                client,
-                SomeIpPacket::new(header, Bytes::new()),
-                std::time::Duration::from_millis(500),
-            )
-            .await;
+            let res = client
+                .call(
+                    SomeIpPacket::new(header, Bytes::new()),
+                    std::time::Duration::from_millis(500),
+                )
+                .await;
 
             println!("Reply:{:?}", res);
         });
