@@ -164,6 +164,7 @@ impl interface::HelloWorld for interface::HelloWorldServer {
 
 pub fn start_server() {
 
+    println!("Size of Client: {}", std::mem::size_of::<someip::client::Client>());
 
     let rt = Runtime::new().unwrap();
     let config = Configuration::default();
@@ -212,7 +213,7 @@ pub fn start_server() {
   
         tokio::spawn(async move { interface::HelloWorldProxy::run(proxy_for_task,addr).await});
 
-        //tokio::spawn(async move {
+        tokio::spawn(async move {
             // client stuff
            // let proxy = proxy.read().unwrap();
             let res = proxy.echo_string(String::from("Hello World")).await;
@@ -226,7 +227,7 @@ pub fn start_server() {
             //proxy.value1.on_change(|v|{/*  changed value1 */});
             //proxy.on_event1(|e|{ /*  do something with the event*/})
 
-        //});
+        });
  
         println!("Sending terminate");
         tokio::time::sleep(Duration::from_millis(2000)).await;

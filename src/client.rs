@@ -136,33 +136,46 @@ impl Client {
     ) -> Result<ReplyData, io::Error> {
         //let pending_calls = self.pending_calls.lock().unwrap();
 
-        let inner = self.inner();
+        let (dispatch_tx, message, pending_calls, request_id) = {
+            let inner = self.inner();
 
-        let session_id = inner
-            .session_id
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
-        message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(inner.service_id);
+            let session_id =
+                inner
+                    .session_id
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
+            let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+            message.header_mut().request_id = request_id;
+            message.header_mut().set_service_id(inner.service_id);
 
-        println!("Pkt: {:?}", message.header());
+            println!("Pkt: {:?}", message.header());
 
-        // add to pending call list
-        {
-            let mut pending_calls = inner.pending_calls.lock().unwrap();
-            if let Some(p) = pending_calls.insert(
-                request_id,
-                (std::time::Instant::now(), timeout, ReplyData::Pending, None),
-            ) {
-                panic!(
-                    "Fatal: Unexpected pending call with request_id: {}",
-                    request_id
-                );
+            // add to pending call list
+            {
+                let mut pending_calls = inner.pending_calls.lock().unwrap();
+                if let Some(p) = pending_calls.insert(
+                    request_id,
+                    (std::time::Instant::now(), timeout, ReplyData::Pending, None),
+                ) {
+                    panic!(
+                        "Fatal: Unexpected pending call with request_id: {}",
+                        request_id
+                    );
+                }
             }
-        }
 
-        inner
-            .dispatch_tx
+            // we need to clone the tx channel as we need to await and the future
+            // could get scheduled on a different thread.
+            let dispatch_tx = inner.dispatch_tx.clone();
+            (
+                dispatch_tx,
+                message,
+                inner.pending_calls.clone(),
+                request_id,
+            )
+        };
+        // everything below this is Sendable as we call await
+
+        dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
             .map_err(|e| {
@@ -171,23 +184,26 @@ impl Client {
                     "Unable to send packet to dispatcher",
                 )
             })?;
-        let future = Reply::new(inner.pending_calls.clone(), request_id);
+        let future = Reply::new(pending_calls, request_id);
         Ok(future.await)
     }
 
     pub async fn call_noreply(&self, mut message: SomeIpPacket) -> Result<(), io::Error> {
         log::debug!("call_noreply");
-        let inner = self.inner();
-        //let this = this.read().unwrap();
-        let session_id = inner
-            .session_id
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
-        let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
-        message.header_mut().request_id = request_id;
-        message.header_mut().set_service_id(inner.service_id);
-
-        inner
-            .dispatch_tx
+        let (dispatch_tx, message) = {
+            let inner = self.inner();
+            //let this = this.read().unwrap();
+            let session_id =
+                inner
+                    .session_id
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
+            let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
+            message.header_mut().request_id = request_id;
+            message.header_mut().set_service_id(inner.service_id);
+            (inner.dispatch_tx.clone(), message)
+        };
+        // everything below is sendable
+        dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
             .map_err(|e| {
