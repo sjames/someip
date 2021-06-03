@@ -73,7 +73,7 @@ impl SomeIPCodec {
     }
 }
 
-#[cfg(test)]
+//#[cfg(test)]
 mod tests {
     use super::*;
     use crate::someip_codec::SomeIpPacket;
@@ -90,7 +90,7 @@ mod tests {
         let _result = rt.block_on(async {
             rt.spawn(async {
                 println!("Initiating connection");
-                let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
+                let addr = "127.0.0.1:8094".parse::<SocketAddr>().unwrap();
 
                 let stream = SomeIPCodec::default().connect(&addr).await;
 
@@ -107,7 +107,7 @@ mod tests {
                 let _res = sink.send(packet).await;
             });
 
-            let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
+            let addr = "127.0.0.1:8094".parse::<SocketAddr>().unwrap();
 
             let (stream, _addr) = SomeIPCodec::default().listen(&addr).await.unwrap();
             let (_sink, mut ins) = stream.split();

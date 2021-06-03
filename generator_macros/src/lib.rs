@@ -51,7 +51,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let dispatch_handler = create_dispatch_handler(&service_trait.ident, &service, &service_trait);
 
     let dispatch_handler_with_use = quote! {
-        use someip::*;
+        //use someip::*;
         use bincode::{deserialize, serialize};
         use bytes::Bytes;
         #dispatch_handler
@@ -71,13 +71,13 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
     let mut tokens_struct = quote! {
         #[derive(Clone)]
         pub struct #struct_name {
-            client : someip::client::Client,
+            client : Client,
         }
 
         impl #struct_name {
-            pub fn new(service_id: u16, client_id: u16, config: someip::Configuration) -> Self {
+            pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
                 #struct_name {
-                    client :someip::client::Client::new(service_id, client_id, config),
+                    client :Client::new(service_id, client_id, config),
                 }
             }
             pub async fn run(self, to: std::net::SocketAddr) -> Result<(), io::Error> {
@@ -192,9 +192,9 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     let need_reply = maybe_return_types.is_some();
 
     let message_type = if need_reply {
-        quote! { someip::MessageType::Request}
+        quote! { MessageType::Request}
     } else {
-        quote! {someip::MessageType::RequestNoReturn}
+        quote! {MessageType::RequestNoReturn}
     };
 
     let timeout_ms: u64 = 1000;
@@ -206,9 +206,9 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
             let res = self.client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
 
             match res {
-                Ok(someip::client::ReplyData::Completed(pkt)) => {
+                Ok(ReplyData::Completed(pkt)) => {
                     match pkt.header().message_type {
-                        someip::someip_codec::MessageType::Response => {
+                        MessageType::Response => {
                             // successful reply, deserialize the payload
                             let params_raw = pkt.payload().as_ref();
                             let maybe_response : Result<#success_type,_> = deserialize(params_raw);
@@ -218,19 +218,19 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                                 Err(MethodError::InvalidResponsePayload)
                             }
                         }
-                        someip::someip_codec::MessageType::Request => {
+                        MessageType::Request => {
                             log::error!("Proxy received Request packet. Ignored");
                             Err(MethodError::ConnectionError)
                         }
-                        someip::someip_codec::MessageType::RequestNoReturn => {
+                        MessageType::RequestNoReturn => {
                             log::error!("Proxy received RequestNoReturn packet. Ignored");
                             Err(MethodError::ConnectionError)
                         }
-                        someip::someip_codec::MessageType::Notification => {
+                        MessageType::Notification => {
                             log::error!("Proxy received Notification packet as response. Ignored");
                             Err(MethodError::ConnectionError)
                         }
-                        someip::someip_codec::MessageType::Error => {
+                        MessageType::Error => {
                             // We need to deserialize the error type
                             let params_raw = pkt.payload().as_ref();
                             let maybe_response : Result<#failure_type,_> = deserialize(params_raw);
@@ -242,10 +242,10 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                         }
                     }
                 }
-                Ok(someip::client::ReplyData::Cancelled) => {
+                Ok(ReplyData::Cancelled) => {
                     Err(MethodError::ConnectionError)
                 }
-                Ok(someip::client::ReplyData::Pending) => {
+                Ok(ReplyData::Pending) => {
                     panic!("This should not happen");
                 }
                 Err(e) => {
@@ -293,7 +293,7 @@ fn create_get_field_method(field: &Field) -> syn::TraitItemMethod {
         /// by the server. The storage of the field may be implementation
         /// depentant. The method is called by the underlying binding when
         /// a client requests a property.
-        fn #get_fn_name(&self) -> Result<&#field_type, someip::FieldError>;
+        fn #get_fn_name(&self) -> Result<&#field_type, FieldError>;
     };
 
     //let parse_buffer: ParseBuffer = method_tokens.into();
@@ -306,7 +306,7 @@ fn create_set_field_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), someip::FieldError>;
+        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), FieldError>;
     };
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
@@ -406,7 +406,7 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
         let res_in_param : Result<#input_struct_name,_> = deserialize(params_raw);
         if res_in_param.is_err() {
             log::error!("Deserialization error for service:{} method:{}", pkt.header().service_id(), pkt.header().event_or_method_id());
-            return Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, Bytes::new()));
+            return Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, Bytes::new()));
         }
         let in_param = res_in_param.unwrap();
         let res = this.#method_name(#(in_param.#params),*);
@@ -541,12 +541,12 @@ fn create_dispatch_handler(
                     Ok(r) => {
                         let reply_raw = serialize(&r).unwrap();
                         let reply_payload = Bytes::from(reply_raw);
-                        Some(SomeIpPacket::reply_packet_from(pkt, someip_codec::ReturnCode::Ok, reply_payload))
+                        Some(SomeIpPacket::reply_packet_from(pkt, ReturnCode::Ok, reply_payload))
                     }
                     Err(e) => {
                         let error_raw = serialize(&e).unwrap();
                         let error_payload = Bytes::from(error_raw);
-                        Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::NotOk, error_payload))
+                        Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, error_payload))
                     }
                 }
             }
@@ -578,7 +578,7 @@ fn create_dispatch_handler(
                             let reply_payload = Bytes::from(reply_raw);
                             Some(SomeIpPacket::reply_packet_from(
                                 pkt,
-                                someip_codec::ReturnCode::Ok,
+                                ReturnCode::Ok,
                                 reply_payload,
                             ))
                         } else {
@@ -591,7 +591,7 @@ fn create_dispatch_handler(
                                     let reply_payload = Bytes::from(reply_raw);
                                     Some(SomeIpPacket::reply_packet_from(
                                         pkt,
-                                        someip_codec::ReturnCode::Ok,
+                                        ReturnCode::Ok,
                                         reply_payload,
                                     ))
                                 }
@@ -600,7 +600,7 @@ fn create_dispatch_handler(
                                     // let reply_payload = Bytes::from(reply_raw);
                                     Some(SomeIpPacket::error_packet_from(
                                         pkt,
-                                        someip_codec::ReturnCode::NotOk,
+                                        ReturnCode::NotOk,
                                         Bytes::new(),
                                     ))
                                 }
@@ -608,7 +608,7 @@ fn create_dispatch_handler(
                         }
                     })*
                     _ => {
-                        Some(SomeIpPacket::error_packet_from(pkt, someip_codec::ReturnCode::UnknownMethod, Bytes::new()))
+                        Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::UnknownMethod, Bytes::new()))
                     }
                 }
             }
@@ -628,7 +628,7 @@ fn input_struct_name_from_method(m: &syn::TraitItemMethod) -> proc_macro2::Ident
 // Add a super trait to this trait item.
 fn add_super_trait(item_trait: &mut syn::ItemTrait) {
     let tokens = quote! {
-        someip::server::ServerRequestHandler
+        ServerRequestHandler
     };
     let super_trait: syn::TypeParamBound = syn::parse2(tokens).unwrap();
 

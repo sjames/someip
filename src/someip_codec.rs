@@ -80,7 +80,7 @@ impl Decoder for SomeIPCodec {
     type Item = SomeIpPacket;
     type Error = std::io::Error;
     fn decode(&mut self, buf: &mut BytesMut) -> std::io::Result<Option<Self::Item>> {
-        println!("decode ({})", buf.len());
+        //log!("decode ({})", buf.len());
 
         // get atleast 8 bytes to cover the MessageID and Length
         if buf.len() < 8 {

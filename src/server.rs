@@ -7,8 +7,8 @@ use tokio::sync::mpsc::channel;
 
 use crate::config::Configuration;
 use crate::someip_codec::SomeIpPacket;
-
-use crate::tasks::*;
+use crate::tasks::{tcp_server_task, udp_task};
+use crate::{ConnectionInfo, DispatcherCommand, DispatcherReply};
 
 pub struct Server {}
 
@@ -125,6 +125,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConnectionMessage;
     use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket};
     use bytes::{Bytes, BytesMut};
     use futures::SinkExt;
@@ -148,7 +149,7 @@ mod tests {
         let rt = Runtime::new().unwrap();
         let config = Configuration::default();
 
-        let at = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
+        let at = "127.0.0.1:8091".parse::<SocketAddr>().unwrap();
         println!("Test");
         let _result = rt.block_on(async {
             let (tx, mut rx) = Server::create_notify_channel(1);
@@ -191,7 +192,7 @@ mod tests {
 
             tokio::time::sleep(Duration::from_millis(20)).await;
 
-            let addr = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
+            let addr = "127.0.0.1:8091".parse::<SocketAddr>().unwrap();
             let mut tx_connection = SomeIPCodec::default().connect(&addr).await.unwrap();
 
             let mut header = SomeIpHeader::default();

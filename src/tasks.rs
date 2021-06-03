@@ -79,100 +79,103 @@ pub async fn tcp_server_task(
 ) -> Result<(), io::Error> {
     loop {
         log::debug!("Waiting for TCP connection from client");
-        if let Ok((tcp_stream, addr)) =
-            SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), &at).await
-        {
-            // received a connection.
+        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), &at).await {
+            Ok((tcp_stream, addr)) => {
+                // received a connection.
 
-            // clone needed to move into the connection task below.  We can have multiple clients
-            // connecting to the server
-            let dx_tx = tcp_dx_tx.clone();
-            let status_sender = notify_tcp_tx.clone();
-            tokio::spawn(async move {
-                let (connection_control_tx, mut connection_control_rx) =
-                    channel::<ConnectionMessage>(1);
+                // clone needed to move into the connection task below.  We can have multiple clients
+                // connecting to the server
+                let dx_tx = tcp_dx_tx.clone();
+                let status_sender = notify_tcp_tx.clone();
+                tokio::spawn(async move {
+                    let (connection_control_tx, mut connection_control_rx) =
+                        channel::<ConnectionMessage>(1);
 
-                if let Err(_e) = status_sender
-                    .send(ConnectionInfo::NewTcpConnection((
-                        connection_control_tx,
-                        addr,
-                    )))
-                    .await
-                {
-                    log::debug!("Unable to send NewTcpConnection Message");
-                    return;
-                }
+                    if let Err(_e) = status_sender
+                        .send(ConnectionInfo::NewTcpConnection((
+                            connection_control_tx,
+                            addr,
+                        )))
+                        .await
+                    {
+                        log::debug!("Unable to send NewTcpConnection Message");
+                        return;
+                    }
 
-                let (mut tx, mut rx) = tcp_stream.split();
-                log::debug!("New TCP connection from client");
-                let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
+                    let (mut tx, mut rx) = tcp_stream.split();
+                    log::debug!("New TCP connection from client");
+                    let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
 
-                loop {
-                    tokio::select! {
-                            Some(Ok(packet)) = rx.next() => {
-                                if packet.header().service_id() != service_id {
-                                    log::error!(
-                                        "(TCP)Invalid service ID({}) in packet for service({})",
-                                        packet.header().service_id(), service_id
-                                    );
-                                    if packet.header().message_type != MessageType::RequestNoReturn {
-                                        let error = SomeIpPacket::error_packet_from(
-                                            packet,
-                                            someip_parse::ReturnCode::UnknownService,
-                                            Bytes::new()
+                    loop {
+                        tokio::select! {
+                                Some(Ok(packet)) = rx.next() => {
+                                    if packet.header().service_id() != service_id {
+                                        log::error!(
+                                            "(TCP)Invalid service ID({}) in packet for service({})",
+                                            packet.header().service_id(), service_id
                                         );
-                                        if let Err(e) = tx.send(error).await {
-                                            log::error!("Error sending error reply {}", e);
-                                            break;
-                                        }
-                                    }
-                                    continue;
-                                }
-
-                                if let Err(e) = dx_tx
-                                    .send(DispatcherCommand::DispatchTcp(packet, dispatch_tx.clone()))
-                                    .await
-                                {
-                                    log::error!("Error sending to dispatcher:{}", e);
-                                    break;
-                                } else {
-                                    // wait for reply from dispatcher
-                                    if let Some(r) = dispatch_reply.recv().await {
-                                        if let DispatcherReply::ResponsePacket(Some(packet)) = r {
-                                            if let Err(_e) = tx.send(packet).await {
-                                                log::error!("Error sending response over TCP");
+                                        if packet.header().message_type != MessageType::RequestNoReturn {
+                                            let error = SomeIpPacket::error_packet_from(
+                                                packet,
+                                                someip_parse::ReturnCode::UnknownService,
+                                                Bytes::new()
+                                            );
+                                            if let Err(e) = tx.send(error).await {
+                                                log::error!("Error sending error reply {}", e);
                                                 break;
+                                            }
+                                        }
+                                        continue;
+                                    }
+
+                                    if let Err(e) = dx_tx
+                                        .send(DispatcherCommand::DispatchTcp(packet, dispatch_tx.clone()))
+                                        .await
+                                    {
+                                        log::error!("Error sending to dispatcher:{}", e);
+                                        break;
+                                    } else {
+                                        // wait for reply from dispatcher
+                                        if let Some(r) = dispatch_reply.recv().await {
+                                            if let DispatcherReply::ResponsePacket(Some(packet)) = r {
+                                                if let Err(_e) = tx.send(packet).await {
+                                                    log::error!("Error sending response over TCP");
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                        Some(msg) = connection_control_rx.recv() => {
-                            match msg {
-                                ConnectionMessage::SendTcpNotification(packet) => {
-                                    if packet.header().message_type == MessageType::Notification {
-                                        log::debug!("Sending notification packet");
-                                        if let Err(_e) = tx.send(packet).await {
-                                            log::error!("Error sending response over TCP");
-                                            break;
+                            Some(msg) = connection_control_rx.recv() => {
+                                match msg {
+                                    ConnectionMessage::SendTcpNotification(packet) => {
+                                        if packet.header().message_type == MessageType::Notification {
+                                            log::debug!("Sending notification packet");
+                                            if let Err(_e) = tx.send(packet).await {
+                                                log::error!("Error sending response over TCP");
+                                                break;
+                                            }
+
+                                        } else {
+                                            log::error!("Ignoring a packet that is not of Notification type");
                                         }
-
-                                    } else {
-                                        log::error!("Ignoring a packet that is not of Notification type");
                                     }
+                                     _ => {
+                                         log::error!("Only TCP notifications can be sent over a TCP connection");
+                                     }
                                 }
-                                 _ => {
-                                     log::error!("Only TCP notifications can be sent over a TCP connection");
-                                 }
                             }
-                        }
 
+                        }
                     }
-                }
-                let _e = tx.close().await;
-                log::debug!("TCP connection terminated")
-            });
+                    let _e = tx.close().await;
+                    log::debug!("TCP connection terminated")
+                });
+            }
+            Err(e) => {
+                log::error!("Listen error: {}", e)
+            }
         }
         log::debug!("End TCP listening");
     }

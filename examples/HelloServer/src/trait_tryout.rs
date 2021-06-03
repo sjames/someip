@@ -1,6 +1,6 @@
 use bincode::serialize;
 use serde::{Serialize, Deserialize};
-use someip::{FieldError, SomeIpHeader, MethodError, client::Client, config::Configuration, server::Server, tasks::ConnectionInfo};
+use someip::{Configuration, FieldError, server::Server, tasks::ConnectionInfo};
 use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket, trait_tryout::interface::HelloWorldError};
 use bytes::{Bytes, BytesMut};
 use futures::SinkExt;
@@ -10,12 +10,13 @@ use tokio::runtime::Runtime;
 use self::interface::HelloWorldServer;
 
 
+
 mod interface {
     use generator_macros::*;
     use std::io;
     use serde::{Serialize, Deserialize};
     use thiserror::Error;
-
+    use someip::{*};
 
 
 
