@@ -36,11 +36,7 @@ where
     T: std::fmt::Debug + std::error::Error + serde::Serialize + serde::de::DeserializeOwned,
 {
     pub fn is_service_error(&self) -> bool {
-        if let Self::Error(_e) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Error(_e))
     }
 
     pub fn into_service_error(self) -> Option<T> {

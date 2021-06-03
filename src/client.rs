@@ -298,7 +298,7 @@ async fn tcp_client_dispatcher(
                                 let mut pending_calls = pending_calls.lock().unwrap();
                                 if let Some(mut pending) = pending_calls.get_mut(&request_id) {
                                     pending.2 = ReplyData::Completed(pkt);
-                                    pending.3.take().map(|w| w.wake());
+                                    if let Some(w) = pending.3.take() { w.wake() }
                                 } else {
                                     log::info!("Response for request_id({}) received but it was not pending", request_id);
                                 }
@@ -353,7 +353,7 @@ mod tests {
         let rt = Runtime::new().unwrap();
 
         let to = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
-        let at = to.clone();
+        let at = to;
         println!("Client Test");
         let run_client = client.clone();
 
@@ -374,23 +374,26 @@ mod tests {
             }
         }
 
-        let server_config = config.clone();
+        let server_config = config;
         let _result = rt.block_on(async {
             tokio::spawn(async move {
                 loop {
                     if let Some(msg) = rx.recv().await {
                         match msg {
-                            ConnectionInfo::NewTcpConnection((sender, i)) => {
+                            ConnectionInfo::NewTcpConnection((_sender, i)) => {
                                 log::debug!("New connection from {}", i);
                             }
                             ConnectionInfo::ConnectionDropped(_i) => {}
-                            ConnectionInfo::NewUdpConnection((sender, i)) => {
+                            ConnectionInfo::NewUdpConnection((sender, _i)) => {
                                 log::debug!("New UDP Connection");
                                 //test notification packet
-                                let mut header = SomeIpHeader::default();
-                                header.message_type = MessageType::Notification;
+                                let header = SomeIpHeader {
+                                    message_type: MessageType::Notification,
+                                    ..Default::default()
+                                };
+                                //header.message_type = MessageType::Notification;
                                 let pkt = SomeIpPacket::new(header, Bytes::new());
-                                let res = sender
+                                let _res = sender
                                     .send(ConnectionMessage::SendUdpNotification((
                                         pkt,
                                         "127.0.0.1:8091".parse::<SocketAddr>().unwrap(),

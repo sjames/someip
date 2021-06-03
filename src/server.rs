@@ -12,9 +12,15 @@ use crate::{ConnectionInfo, DispatcherCommand, DispatcherReply};
 
 pub struct Server {}
 
+impl Default for Server {
+    fn default() -> Self {
+        Server {}
+    }
+}
+
 impl Server {
     pub fn new() -> Self {
-        Self {}
+        Server::default()
     }
 
     pub fn create_notify_channel(
@@ -158,16 +164,18 @@ mod tests {
                 loop {
                     if let Some(msg) = rx.recv().await {
                         match msg {
-                            ConnectionInfo::NewTcpConnection((sender, i)) => {
+                            ConnectionInfo::NewTcpConnection((_sender, i)) => {
                                 println!("New connection from {}", i);
                             }
                             ConnectionInfo::ConnectionDropped(_i) => {}
                             ConnectionInfo::NewUdpConnection((sender, i)) => {
                                 //test notification packet
-                                let mut header = SomeIpHeader::default();
-                                header.message_type = MessageType::Notification;
+                                let header = SomeIpHeader {
+                                    message_type: MessageType::Notification,
+                                    ..Default::default()
+                                };
                                 let pkt = SomeIpPacket::new(header, Bytes::new());
-                                let res = sender
+                                let _res = sender
                                     .send(ConnectionMessage::SendUdpNotification((
                                         pkt,
                                         "127.0.0.1:8091".parse::<SocketAddr>().unwrap(),
