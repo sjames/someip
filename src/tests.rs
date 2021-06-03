@@ -3,6 +3,7 @@ use crate::server::Server;
 use crate::error::MethodError;
 
 use super::*;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::runtime::Runtime;
 
@@ -15,11 +16,22 @@ use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use std::time;
 
-#[derive(Serialize,Deserialize, Default)]
-    pub struct Field1 {
+#[derive(Serialize,Deserialize, Default,Clone, Debug, PartialEq)]
+pub struct SubField
+{
+    a : u32,
+    b : String,
+    c : HashMap<String,String>
+}
+
+#[derive(Serialize,Deserialize, Default,Clone, Debug, PartialEq)]
+pub struct Field1 {
         a: u32,
         b: u16,
         c: String,
+        d: Vec<String>,
+        e: Vec<u64>,
+        map : SubField,
     }
 
     #[derive(Serialize,Deserialize)]
@@ -41,11 +53,15 @@ use std::time;
 
     #[service(fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
-        method_ids([1]echo_int, [2]echo_string, [3]no_reply))]
+        method_ids([1]echo_int, [2]echo_string, [3]no_reply),
+        method_ids([4]echo_u64, [5]echo_struct)
+    )]
     pub trait EchoServer {
-        fn echo_int(&self, value: i32, value1: Field1) -> Result<i32, EchoError>;
+        fn echo_int(&self, value: i32) -> Result<i32, EchoError>;
         fn echo_string(&self, value: String) -> Result<String, EchoError>;
         fn no_reply(&self, value: Field1);
+        fn echo_u64(&self, value: u64) -> Result<u64, EchoError>;
+        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError>;
     }
 
     pub struct EchoServerImpl {
@@ -58,7 +74,7 @@ use std::time;
         }
     }
     impl EchoServer for EchoServerImpl {
-        fn echo_int(&self, value: i32, value1: Field1) -> Result<i32, EchoError> {
+        fn echo_int(&self, value: i32) -> Result<i32, EchoError> {
             Ok(value)
         }
     
@@ -75,7 +91,15 @@ use std::time;
         fn get_value3(&self) -> Result<&u32, FieldError> { todo!() }
     
         fn no_reply(&self, value: Field1) {
-            println!("No reply");
+            //println!("No reply");
+        }
+
+        fn echo_u64(&self, value: u64) -> Result<u64, EchoError> {
+            Ok(value)
+        }
+
+        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError> {
+            Ok(value)
         }
     
     }
@@ -138,7 +162,8 @@ use std::time;
       
             tokio::spawn(async move { EchoServerProxy::run(proxy_for_task,addr).await});
     
-            tokio::spawn(async move {
+            let task = tokio::spawn(async move {
+                for i in 1..25 {
                 let res = proxy.echo_string(String::from("Hello World")).await;
                 assert_eq!(res.unwrap(),String::from("Hello World"));
 
@@ -147,16 +172,34 @@ use std::time;
          
                 let res = proxy.no_reply(Field1::default()).await;
                 assert_eq!(res, Ok(()));
-    
-                //let field1 = proxy.value1.get();
-                //let err = proxy.value1.set(interface::Field1::default()).await;
-                //proxy.value1.on_change(|v|{/*  changed value1 */});
-                //proxy.on_event1(|e|{ /*  do something with the event*/})
+
+                let res = proxy.echo_int(42i32).await;
+                assert_eq!(42i32, res.unwrap());
+
+                let res = proxy.echo_u64(42).await;
+                assert_eq!(42u64, res.unwrap());
+
+                let field = Field1 {
+                    a: 75,
+                    b: 56,
+                    c:String::from("This is a string"),
+                    d: vec![String::from("foo"), String::from("bar")],
+                    e: vec![1,2,3,4,5,6,7],
+                    map: SubField {
+                        a: 5,
+                        b: String::from("baz"),
+                        c: HashMap::new(),
+                    },
+                };
+                
+                let returned = field.clone();
+                let res = proxy.echo_struct(field).await;
+                assert_eq!(returned, res.unwrap());
+            }
+
     
             });
-     
-            println!("Sending terminate");
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            //let res = &mut handle.terminate().await;
+            let _ = task.await;
+
         });
     }
