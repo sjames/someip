@@ -73,19 +73,19 @@ impl SomeIPCodec {
     }
 }
 
-//#[cfg(test)]
+#[cfg(test)]
 mod tests {
+    use std::fmt::Write;
+
+    use crate::SomeIpPacket;
+
     use super::*;
-    use crate::someip_codec::SomeIpPacket;
     use bytes::BytesMut;
     use futures::{SinkExt, StreamExt};
     use someip_parse::SomeIpHeader;
-    use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str};
-    use tokio::runtime::Runtime;
-
     #[test]
     fn test_loopback() {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             rt.spawn(async {
@@ -134,11 +134,11 @@ mod tests {
 
     #[test]
     fn test_udp() {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             rt.spawn(async {
-                let addr = "0.0.0.0:4712".parse::<SocketAddr>().unwrap();
+                let addr = "0.0.0.0:4712".parse::<std::net::SocketAddr>().unwrap();
 
                 let ipv4s = Vec::new();
                 let ipv6 = Vec::new();

@@ -90,7 +90,7 @@ impl Server {
     ) -> Option<SomeIpPacket> {
         match packet.header().message_type {
             someip_parse::MessageType::Request => {
-                if let Ok(mut handler) = handler.lock() {
+                if let Ok(handler) = handler.lock() {
                     handler.handle(packet)
                 } else {
                     log::error!("Mutex poisoned?");
@@ -98,7 +98,7 @@ impl Server {
                 }
             }
             someip_parse::MessageType::RequestNoReturn => {
-                if let Ok(mut handler) = handler.lock() {
+                if let Ok(handler) = handler.lock() {
                     handler.handle(packet);
                     None
                 } else {
