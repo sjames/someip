@@ -1,6 +1,5 @@
 use core::panic;
 use std::{
-    cell::RefCell,
     collections::HashMap,
     io,
     net::SocketAddr,
@@ -12,9 +11,8 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use bytes::Bytes;
 use futures::{Future, SinkExt, StreamExt};
-use someip_parse::SomeIpHeader;
+
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::someip_codec::{MessageType, SomeIpPacket};
@@ -53,10 +51,6 @@ pub struct Client {
 }
 
 impl Client {
-    fn inner_mut(&self) -> std::sync::RwLockWriteGuard<'_, ClientInner> {
-        let inner = self.inner.write().unwrap();
-        inner
-    }
     fn inner(&self) -> std::sync::RwLockReadGuard<'_, ClientInner> {
         let inner = self.inner.read().unwrap();
         inner
@@ -90,7 +84,7 @@ impl ClientInner {
 
 impl Client {
     pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
-        let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
+        //let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
         Self {
             //config,
             //pending_calls: Arc::new(Mutex::new(HashMap::new())),
@@ -152,7 +146,7 @@ impl Client {
             // add to pending call list
             {
                 let mut pending_calls = inner.pending_calls.lock().unwrap();
-                if let Some(p) = pending_calls.insert(
+                if let Some(_p) = pending_calls.insert(
                     request_id,
                     (std::time::Instant::now(), timeout, ReplyData::Pending, None),
                 ) {
@@ -178,7 +172,7 @@ impl Client {
         dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
-            .map_err(|e| {
+            .map_err(|_e| {
                 io::Error::new(
                     io::ErrorKind::BrokenPipe,
                     "Unable to send packet to dispatcher",
@@ -206,7 +200,7 @@ impl Client {
         dispatch_tx
             .send(DispatcherMessage::Call(message))
             .await
-            .map_err(|e| {
+            .map_err(|_e| {
                 io::Error::new(
                     io::ErrorKind::BrokenPipe,
                     "Unable to send packet to dispatcher",
@@ -330,7 +324,8 @@ async fn tcp_client_dispatcher(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::RwLock;
+    use bytes::Bytes;
+    use someip_parse::SomeIpHeader;
 
     use super::*;
     use crate::{
