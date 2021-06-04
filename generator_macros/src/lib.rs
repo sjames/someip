@@ -67,22 +67,44 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
+    let fields = get_fields(service);
+
+    let mut field_name = Vec::new();
+    for field in &fields {
+        let name = field.name.clone();
+        field_name.push(name);
+    }
+
+    let mut field_type = Vec::new();
+    for field in &fields {
+        let name = field.ty.as_ref().unwrap().clone();
+        field_type.push(name);
+    }
+
+    let mut field_id = Vec::new();
+    for field in &fields {
+        let name = field.id.id.clone();
+        field_id.push(name);
+    }
 
     let mut tokens_struct = quote! {
         #[derive(Clone)]
         pub struct #struct_name {
-            client : Client,
+            #(pub #field_name: Field<#field_type>,)*
+            _client : Client,
         }
 
         impl #struct_name {
             pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+                let client = Client::new(service_id, client_id, config);
                 #struct_name {
-                    client :Client::new(service_id, client_id, config),
+                    #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id ) ),*,
+                    _client : client,
                 }
             }
             pub async fn run(self, to: std::net::SocketAddr) -> Result<(), io::Error> {
                 let client = {
-                    let client = self.client.clone();
+                    let client = self._client.clone();
                     client
                 };
                 client.run(to).await
@@ -97,7 +119,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
         .map(|(i, ident)| get_client_method_by_ident(*i as u16, ident, item_trait))
         .collect();
 
-    let mut tokens_impl = quote! {
+    let tokens_impl = quote! {
         impl #struct_name {
             #(#methods)*
         }
@@ -106,6 +128,23 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
     tokens_struct.extend(tokens_impl);
 
     tokens_struct.into()
+}
+
+fn get_fields(service: &Service) -> Vec<Field> {
+    let mut fields = Vec::new();
+    for entry in &service.entries {
+        match entry.ident.to_string().as_str() {
+            "fields" => {
+                for field in &entry.fields {
+                    fields.push(field.clone());
+                }
+            }
+            _ => {
+                //println!("{} ignored", entry.ident.to_string());
+            }
+        }
+    }
+    fields
 }
 
 fn get_result_types(p: &syn::TypePath) -> Option<(syn::GenericArgument, syn::GenericArgument)> {
@@ -202,8 +241,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     let call_and_reply_tokens = if need_reply {
         let (success_type, failure_type) = maybe_return_types.unwrap();
         quote! {
-            //let res = someip::client::Client::call(self.client.clone(),packet,std::time::Duration::from_millis(#timeout_ms)).await;
-            let res = self.client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
+            let res = self._client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
 
             match res {
                 Ok(ReplyData::Completed(pkt)) => {
@@ -256,7 +294,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     } else {
         quote! {
             //let client = self.client.read().unwrap();
-            if let Err(_e) = self.client.call_noreply(packet).await {
+            if let Err(_e) = self._client.call_noreply(packet).await {
                 log::error!("call_noreply failed");
                 Err(())
             } else {
@@ -265,7 +303,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
         }
     };
 
-    /// The method
+    // The method
     let tokens = quote! {
         pub async fn #ident ( #params ) #return_tokens {
             let input_params = #input_struct_name {
@@ -741,7 +779,7 @@ impl Service {
     //fn validate(&self) -> Option<>
 }
 
-#[derive(Parse)]
+#[derive(Parse, Clone)]
 struct Id {
     id: syn::LitInt,
     arrow: Option<Token![=>]>,
@@ -767,7 +805,7 @@ impl Id {
     }
 }
 
-#[derive(Parse)]
+#[derive(Parse, Clone)]
 struct Field {
     //id: Option<u32>,
     #[bracket]

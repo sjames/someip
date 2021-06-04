@@ -13,6 +13,7 @@ mod tests;
 
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
+pub use field::Field;
 pub use server::{Server, ServerRequestHandler};
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::{ConnectionInfo, ConnectionMessage, DispatcherCommand, DispatcherReply};

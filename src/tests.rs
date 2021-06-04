@@ -65,7 +65,7 @@ pub struct Field1 {
     }
 
     pub struct EchoServerImpl {
-
+        value1 : Field1,
     }
 
     impl ServerRequestHandler for EchoServerImpl {
@@ -84,7 +84,9 @@ pub struct Field1 {
     
         fn set_value1(& self, _: Field1) -> Result<(), FieldError> { Ok(()) }
     
-        fn get_value1(&self) -> Result<&Field1, FieldError> { todo!() }
+        fn get_value1(&self) -> Result<&Field1, FieldError> { 
+            Ok(&self.value1)
+         }
         fn set_value2(&self, _: std::string::String) -> Result<(), FieldError> { Ok(())}
         fn get_value2(&self) -> Result<&std::string::String, FieldError> { todo!() }
         fn set_value3(&self, _: u32) -> Result<(), FieldError> { Ok(()) }
@@ -106,8 +108,10 @@ pub struct Field1 {
 
     impl Default for EchoServerImpl {
         fn default() -> Self {
+            let mut value1 = Field1::default();
+            value1.a = 56678;
             EchoServerImpl {
-    
+                value1,
             }
         }
     }
@@ -156,7 +160,7 @@ pub struct Field1 {
             async_std::task::sleep(Duration::from_millis(20)).await;
     
             let config = Configuration::default();
-            let proxy = EchoServerProxy::new(45, 0, config);
+            let mut proxy = EchoServerProxy::new(45, 0, config);
             let addr = "127.0.0.1:8092".parse::<SocketAddr>().unwrap();
             let proxy_for_task = proxy.clone();
       
@@ -178,6 +182,11 @@ pub struct Field1 {
 
                 let res = proxy.echo_u64(42).await;
                 assert_eq!(42u64, res.unwrap());
+
+                proxy.value1.set(Field1::default()).await;
+                let _val = proxy.value1.get().await;
+                println!("Val: {:?}", proxy.value1.get_cached());
+                
 
                 let field = Field1 {
                     a: 75,
