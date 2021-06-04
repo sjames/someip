@@ -139,7 +139,7 @@ impl Decoder for SomeIPCodec {
             packet.advance(someip_parse::SOMEIP_HEADER_LENGTH);
         }
 
-        log::debug!("Packet:{:?}", header);
+        log::debug!("Decode Packet:{:?}", header);
 
         Ok(Some(SomeIpPacket {
             payload: packet.into(),

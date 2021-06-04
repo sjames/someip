@@ -178,7 +178,7 @@ mod tests {
                                 let _res = sender
                                     .send(ConnectionMessage::SendUdpNotification((
                                         pkt,
-                                        "127.0.0.1:8091".parse::<SocketAddr>().unwrap(),
+                                        "127.0.0.1:9001".parse::<SocketAddr>().unwrap(),
                                     )))
                                     .await;
                             }

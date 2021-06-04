@@ -213,10 +213,10 @@ pub async fn udp_task(
                 Some(Ok(packet)) = rx.next() => {
                         let (packet, addr) = packet;
                         if packet.header().service_id() != service_id {
-                            log::error!(
-                                "(UDP)Invalid service ID({}) in packet for service {}",
-                                packet.header().service_id(), service_id,
-                            );
+                             log::error!(
+                                 "(UDP:{})Invalid service ID({}) in packet for service {}\n packet:{:?}",udp_addr,
+                                 packet.header().service_id(), service_id, packet.header()
+                             );
                             if packet.header().message_type != MessageType::RequestNoReturn {
                                 let error = SomeIpPacket::error_packet_from(
                                     packet,

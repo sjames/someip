@@ -352,7 +352,7 @@ mod tests {
 
         let rt = Runtime::new().unwrap();
 
-        let to = "127.0.0.1:8090".parse::<SocketAddr>().unwrap();
+        let to = "127.0.0.1:8099".parse::<SocketAddr>().unwrap();
         let at = to;
         println!("Client Test");
         let run_client = client.clone();
@@ -363,7 +363,7 @@ mod tests {
 
         impl ServerRequestHandler for TestService {
             fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket> {
-                //println!("Packet received: {:?}", message);
+                println!("Packet received: {:?}", message);
                 assert_eq!(message.header().service_id(), 0x45);
                 assert_eq!(message.header().event_or_method_id(), 0x01);
                 Some(SomeIpPacket::reply_packet_from(
@@ -384,8 +384,8 @@ mod tests {
                                 log::debug!("New connection from {}", i);
                             }
                             ConnectionInfo::ConnectionDropped(_i) => {}
-                            ConnectionInfo::NewUdpConnection((sender, _i)) => {
-                                log::debug!("New UDP Connection");
+                            ConnectionInfo::NewUdpConnection((sender, i)) => {
+                                log::debug!("New UDP Connection from {}", i);
                                 //test notification packet
                                 let header = SomeIpHeader {
                                     message_type: MessageType::Notification,
@@ -396,7 +396,7 @@ mod tests {
                                 let _res = sender
                                     .send(ConnectionMessage::SendUdpNotification((
                                         pkt,
-                                        "127.0.0.1:8091".parse::<SocketAddr>().unwrap(),
+                                        "127.0.0.1:8055".parse::<SocketAddr>().unwrap(),
                                     )))
                                     .await;
                             }
