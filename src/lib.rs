@@ -4,8 +4,8 @@ pub mod config;
 pub mod connection;
 pub mod error;
 pub mod field;
+pub mod sd_messages;
 pub mod server;
-pub mod service_discovery;
 pub mod someip_codec;
 pub mod tasks;
 
