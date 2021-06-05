@@ -202,7 +202,7 @@ pub async fn udp_task(
             )))
             .await
         {
-            log::debug!("Unable to send NewTcpConnection Message");
+            log::debug!("Unable to send NewUdpConnection Message");
             return Err(std::io::Error::new(
                 io::ErrorKind::ConnectionAborted,
                 "Unable to send connection notification",

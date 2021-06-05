@@ -20,7 +20,7 @@ mod interface {
 
 
 
-    #[derive(Serialize,Deserialize, Default)]
+    #[derive(Serialize,Deserialize, Default,Clone)]
     pub struct Field1 {
         a: u32,
         b: u16,
@@ -215,19 +215,11 @@ pub fn start_server() {
         tokio::spawn(async move { interface::HelloWorldProxy::run(proxy_for_task,addr).await});
 
         tokio::spawn(async move {
-            // client stuff
-           // let proxy = proxy.read().unwrap();
             let res = proxy.echo_string(String::from("Hello World")).await;
             println!("Return value: {:?}", res);
             let res = proxy.echo_string(String::from("Hello World2")).await;
             println!("Return value: {:?}", res);
             let res = proxy.no_reply(interface::Field1::default()).await;
-
-            //let field1 = proxy.value1.get();
-            //let err = proxy.value1.set(interface::Field1::default()).await;
-            //proxy.value1.on_change(|v|{/*  changed value1 */});
-            //proxy.on_event1(|e|{ /*  do something with the event*/})
-
         });
  
         println!("Sending terminate");

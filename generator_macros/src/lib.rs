@@ -284,7 +284,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                     Err(MethodError::ConnectionError)
                 }
                 Ok(ReplyData::Pending) => {
-                    panic!("This should not happen");
+                    panic!("This should not happen")
                 }
                 Err(e) => {
                     Err(MethodError::ConnectionError)

@@ -24,7 +24,7 @@ pub struct SubField
     c : HashMap<String,String>
 }
 
-#[derive(Serialize,Deserialize, Default,Clone, Debug, PartialEq)]
+#[derive(Serialize,Deserialize, Default, Clone, Debug, PartialEq)]
 pub struct Field1 {
         a: u32,
         b: u16,
@@ -51,7 +51,8 @@ pub struct Field1 {
         ConnectionError,
     }
 
-    #[service(fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
+    #[service(
+        fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
         method_ids([1]echo_int, [2]echo_string, [3]no_reply),
         method_ids([4]echo_u64, [5]echo_struct)
@@ -108,8 +109,11 @@ pub struct Field1 {
 
     impl Default for EchoServerImpl {
         fn default() -> Self {
-            let mut value1 = Field1::default();
-            value1.a = 56678;
+            let value1 = Field1 {
+                a : 56678,
+                ..Default::default()
+            };
+            
             EchoServerImpl {
                 value1,
             }
@@ -156,7 +160,6 @@ pub struct Field1 {
                 }
             });
     
-            //tokio::time::sleep(Duration::from_millis(20)).await;
             async_std::task::sleep(Duration::from_millis(20)).await;
     
             let config = Configuration::default();
@@ -183,8 +186,8 @@ pub struct Field1 {
                 let res = proxy.echo_u64(42).await;
                 assert_eq!(42u64, res.unwrap());
 
-                proxy.value1.set(Field1::default()).await;
-                let _val = proxy.value1.get().await;
+                proxy.value1.set(Field1::default()).await.unwrap();
+                let _val = proxy.value1.refresh().await.unwrap();
                 println!("Val: {:?}", proxy.value1.get_cached());
                 
 

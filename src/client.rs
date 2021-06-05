@@ -178,8 +178,37 @@ impl Client {
                     "Unable to send packet to dispatcher",
                 )
             })?;
-        let future = Reply::new(pending_calls, request_id);
-        Ok(future.await)
+        let future = Reply::new(pending_calls.clone(), request_id);
+
+        let timeout_future = tokio::time::sleep(timeout);
+        tokio::pin!(timeout_future);
+        tokio::select! {
+            () = timeout_future => {
+                println!("timer elapsed");
+                let mut pending_calls = pending_calls.lock().unwrap();
+                if let Some(pending) = pending_calls.get_mut(&request_id) {
+                    match pending.2 {
+                        ReplyData::Pending => {
+                            pending.2 = ReplyData::Cancelled;
+                            if let Some(w) = pending.3.take() { w.wake() }
+                            let data = pending_calls.remove_entry(&request_id).unwrap();
+                            log::debug!("Removed pending call for {} {:?}", request_id, data);
+
+                        }
+                        _ => {
+                            log::error!("Timeout but no pending call");
+                        }
+                    }
+                    Ok(ReplyData::Cancelled)
+                } else {
+                    todo!()
+                }
+
+            },
+            fut = future =>  {
+                Ok(fut)
+            }
+        }
     }
 
     pub async fn call_noreply(&self, mut message: SomeIpPacket) -> Result<(), io::Error> {

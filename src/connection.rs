@@ -1,15 +1,17 @@
 pub use crate::someip_codec::SomeIPCodec;
+
 use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
 };
-use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::net::{TcpListener, TcpStream, UdpSocket, UnixStream};
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Framed;
 use tokio_util::udp::UdpFramed;
 
 pub type TcpSomeIpConnection = Framed<TcpStream, SomeIPCodec>;
 pub type UdpSomeIpConnection = UdpFramed<SomeIPCodec>;
+pub type UdsSomeIpConnection = Framed<UnixStream, SomeIPCodec>;
 
 impl SomeIPCodec {
     pub async fn connect(self, addr: &SocketAddr) -> Result<TcpSomeIpConnection, io::Error> {
@@ -27,7 +29,7 @@ impl SomeIPCodec {
         match listener.accept().await {
             Ok((socket, addr)) => {
                 let peer_addr = socket.peer_addr().unwrap();
-                log::debug!("Connection established {:?} from {}", addr, peer_addr);
+                log::debug!("Connection accepted {:?} from {}", addr, peer_addr);
                 Ok((self.framed(socket), peer_addr))
             }
             Err(e) => {
@@ -83,7 +85,7 @@ mod tests {
     use bytes::BytesMut;
     use futures::{SinkExt, StreamExt};
     use someip_parse::SomeIpHeader;
-    #[test]
+
     fn test_loopback() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -113,22 +115,26 @@ mod tests {
             let (_sink, mut ins) = stream.split();
             println!("Connected!");
 
-            loop {
-                if let Some(packet) = ins.next().await {
-                    if let Ok(packet) = packet {
-                        println!("Packet received:{:?}", &packet);
-                        assert_eq!(packet.header().service_id(), 42);
-                        assert_eq!(packet.header().event_or_method_id(), 67);
-                        let mut payload = BytesMut::with_capacity(10);
-                        payload.write_str("THIS IS A TEST").expect("payload write");
-                        assert_eq!(payload, packet.payload());
+            let task = tokio::spawn(async move {
+                loop {
+                    if let Some(packet) = ins.next().await {
+                        if let Ok(packet) = packet {
+                            println!("Packet received:{:?}", &packet);
+                            assert_eq!(packet.header().service_id(), 42);
+                            assert_eq!(packet.header().event_or_method_id(), 67);
+                            let mut payload = BytesMut::with_capacity(10);
+                            payload.write_str("THIS IS A TEST").expect("payload write");
+                            assert_eq!(payload, packet.payload());
+                            break;
+                        }
+                    } else {
+                        println!("Connection stopped");
                         break;
                     }
-                } else {
-                    println!("Connection stopped");
-                    break;
                 }
-            }
+            });
+
+            task.await;
         });
     }
 

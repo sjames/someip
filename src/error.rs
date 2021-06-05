@@ -46,3 +46,13 @@ where
         }
     }
 }
+
+#[derive(Error, Debug)]
+pub enum PropertyError {
+    #[error("Connection error")]
+    ConnectionError,
+    #[error("Response payload was invalid")]
+    InvalidResponsePayload,
+    #[error("Call was cancelled")]
+    Cancelled,
+}
