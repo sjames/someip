@@ -184,7 +184,7 @@ impl Client {
         tokio::pin!(timeout_future);
         tokio::select! {
             () = timeout_future => {
-                println!("timer elapsed");
+                log::debug!("timer elapsed");
                 let mut pending_calls = pending_calls.lock().unwrap();
                 if let Some(pending) = pending_calls.get_mut(&request_id) {
                     match pending.2 {

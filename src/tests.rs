@@ -80,6 +80,7 @@ pub struct Field1 {
         }
     
         fn echo_string(&self, value: String) -> Result<String, EchoError> {
+            std::thread::sleep(std::time::Duration::from_millis(1));
             Ok(value)
         }
     
@@ -179,6 +180,19 @@ pub struct Field1 {
                 let res = proxy.echo_string(String::from("Hello World2"),&prop).await;
                 assert_eq!(res.unwrap(),String::from("Hello World2"));
          
+                let res = proxy.echo_string(String::from("This should timeout"), &CallProperties::with_timeout(std::time::Duration::from_nanos(1))).await;
+                //assert_eq!(res, Err(MethodError::ConnectionError));
+        
+                match res {
+                    Ok(r) => {
+                        panic!("This should have failed");
+                    },
+                    Err(e) => {
+
+                    }
+                }
+    
+
                 let res = proxy.no_reply(Field1::default(),&prop).await;
                 assert_eq!(res, Ok(()));
 
@@ -191,6 +205,8 @@ pub struct Field1 {
                 proxy.value1.set(Field1::default()).await.unwrap();
                 let _val = proxy.value1.refresh().await.unwrap();
                 println!("Val: {:?}", proxy.value1.get_cached());
+
+                
                 
 
                 let field = Field1 {
