@@ -354,12 +354,14 @@ impl Into<u8> for ServiceEntryType {
 #[derive(Debug)]
 pub struct ServiceEntry {
     data: BitArray<Msb0, [u8; 16]>,
+    options: Option<Vec<SDOption>>,
 }
 
 impl Default for ServiceEntry {
     fn default() -> Self {
         ServiceEntry {
             data: BitArray::default(),
+            options: None,
         }
     }
 }
@@ -397,6 +399,10 @@ impl ServiceEntry {
 
     pub fn as_buffer(&self) -> &[u8; 16] {
         self.data.as_buffer()
+    }
+
+    pub fn set_options(&mut self, options: Vec<SDOption>) {
+        self.options = Some(options)
     }
 }
 
@@ -447,7 +453,6 @@ impl EventGroupEntry {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
 
     use super::*;
 
