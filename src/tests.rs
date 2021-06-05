@@ -169,21 +169,23 @@ pub struct Field1 {
       
             tokio::spawn(async move { EchoServerProxy::run(proxy_for_task,addr).await});
     
+            let prop = CallProperties::default();
+
             let task = tokio::spawn(async move {
                 for i in 1..25 {
-                let res = proxy.echo_string(String::from("Hello World")).await;
+                let res = proxy.echo_string(String::from("Hello World"), &prop).await;
                 assert_eq!(res.unwrap(),String::from("Hello World"));
 
-                let res = proxy.echo_string(String::from("Hello World2")).await;
+                let res = proxy.echo_string(String::from("Hello World2"),&prop).await;
                 assert_eq!(res.unwrap(),String::from("Hello World2"));
          
-                let res = proxy.no_reply(Field1::default()).await;
+                let res = proxy.no_reply(Field1::default(),&prop).await;
                 assert_eq!(res, Ok(()));
 
-                let res = proxy.echo_int(42i32).await;
+                let res = proxy.echo_int(42i32,&prop).await;
                 assert_eq!(42i32, res.unwrap());
 
-                let res = proxy.echo_u64(42).await;
+                let res = proxy.echo_u64(42,&prop).await;
                 assert_eq!(42u64, res.unwrap());
 
                 proxy.value1.set(Field1::default()).await.unwrap();
@@ -205,7 +207,7 @@ pub struct Field1 {
                 };
                 
                 let returned = field.clone();
-                let res = proxy.echo_struct(field).await;
+                let res = proxy.echo_struct(field,&prop).await;
                 assert_eq!(returned, res.unwrap());
             }
 

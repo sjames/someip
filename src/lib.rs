@@ -1,3 +1,4 @@
+pub mod call_properties;
 pub mod client;
 pub mod config;
 pub mod connection;
@@ -11,6 +12,7 @@ pub mod tasks;
 #[cfg(test)]
 mod tests;
 
+pub use call_properties::CallProperties;
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
 pub use field::Field;

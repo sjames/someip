@@ -241,7 +241,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
     let call_and_reply_tokens = if need_reply {
         let (success_type, failure_type) = maybe_return_types.unwrap();
         quote! {
-            let res = self._client.call(packet,std::time::Duration::from_millis(#timeout_ms)).await;
+            let res = self._client.call(packet,properties.timeout).await;
 
             match res {
                 Ok(ReplyData::Completed(pkt)) => {
@@ -305,7 +305,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
 
     // The method
     let tokens = quote! {
-        pub async fn #ident ( #params ) #return_tokens {
+        pub async fn #ident ( #params , properties:&CallProperties) #return_tokens {
             let input_params = #input_struct_name {
                 #(#struct_members),*
             };
