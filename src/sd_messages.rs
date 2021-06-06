@@ -1,7 +1,9 @@
 use bincode::config;
 use bitvec::prelude::*;
 use byteorder::{BigEndian, ByteOrder};
-use bytes::BufMut;
+use bytes::{BufMut, Bytes};
+use core::num;
+use someip_parse::SomeIpHeader;
 use std::{
     convert::TryFrom,
     fmt::Display,
@@ -9,12 +11,138 @@ use std::{
     option,
 };
 
-#[derive(Debug, PartialEq)]
+use crate::SomeIpPacket;
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct SDMessage {
+    header: SomeIpHeader,
+    entries: Vec<ServiceEntry>,
+    options: Vec<SDOption>,
+    flags_reserved: u32,
+}
+
+impl Default for SDMessage {
+    fn default() -> Self {
+        SDMessage {
+            header: SomeIpHeader {
+                message_id: 0xFFFF_8100,
+                interface_version: 0x1,
+                message_type: someip_parse::MessageType::Notification,
+                length: 20, // Length field for empty SDMessage is 20 bytes
+                ..Default::default()
+            },
+            entries: Vec::new(),
+            options: Vec::new(),
+            flags_reserved: 0,
+        }
+    }
+}
+
+impl From<SDMessage> for SomeIpPacket {
+    fn from(msg: SDMessage) -> Self {
+        let mut payload: Vec<u8> = Vec::new();
+        payload.put_u32(msg.flags_reserved);
+        payload.put_u32(msg.entries.len() as u32); // number of entries
+        for entry in msg.entries {
+            let e_raw = entry.as_buffer();
+            payload.extend(e_raw);
+        }
+        payload.put_u32(msg.options.len() as u32); //number of options
+        for option in msg.options {
+            let o_raw: Vec<u8> = option.into();
+            payload.extend(o_raw);
+        }
+        println!(
+            "SomeIpPkt from SDMessage : Payload length:{}",
+            payload.len()
+        );
+        SomeIpPacket::new(msg.header, Bytes::from(payload))
+    }
+}
+
+impl TryFrom<SomeIpPacket> for SDMessage {
+    type Error = ();
+
+    fn try_from(pkt: SomeIpPacket) -> Result<Self, Self::Error> {
+        if !pkt.header().is_someip_sd()
+            || pkt.header().interface_version != 1
+            || pkt.header().message_type != someip_parse::MessageType::Notification
+        {
+            return Err(());
+        }
+        let header = pkt.header().clone();
+        let payload = pkt.payload();
+
+        println!("Pkt Header payload len: {}", pkt.header().length);
+        println!("Payload length:{}", payload.len());
+
+        let flags_reserved = BigEndian::read_u32(&payload[0..]);
+        let num_entries = BigEndian::read_u32(&payload[4..]) as usize;
+        let option_length_index = 8 + num_entries * 16;
+        if payload.len() < option_length_index {
+            log::error!("Invalid packet. Not enough bytes for service entries");
+            return Err(());
+        }
+        let entries_slice = &payload[8..option_length_index]; // each entry is 16 bytes long
+
+        let mut entries = Vec::new();
+
+        for entry in entries_slice.chunks(16) {
+            if let Ok(entry) = ServiceEntry::try_from(entry) {
+                entries.push(entry);
+            } else {
+                return Err(());
+            }
+        }
+
+        if entries.len() != num_entries {
+            log::error!("Incorrect number of entries");
+            return Err(());
+        }
+
+        let options_slice = &payload[option_length_index..];
+        let options_length_in_bytes = BigEndian::read_u32(&options_slice[0..]) as usize;
+        let options_buffer_slice = &options_slice[4..];
+
+        if options_length_in_bytes != options_buffer_slice.len() {
+            log::error!("Inconsistent options length field");
+            return Err(());
+        }
+
+        let mut options = Vec::new();
+
+        let mut option_start_index = 0;
+        loop {
+            if option_start_index + 2 > options_buffer_slice.len() {
+                break;
+            }
+            let len = BigEndian::read_u16(&options_buffer_slice[option_start_index..]) as usize;
+            let option_end_index = option_start_index + len + 3;
+            let option_slice = &options_buffer_slice[option_start_index..option_end_index];
+            if let Ok(option) = SDOption::try_from(option_slice) {
+                options.push(option);
+            } else {
+                log::error!("Error parsing SDOption");
+                return Err(());
+            }
+            option_start_index = option_end_index;
+        }
+
+        Ok(SDMessage {
+            header,
+            entries,
+            options,
+            flags_reserved,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum SDOptionTransportProto {
     UDP,
     TCP,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ConfigurationKey(String);
 
 impl ConfigurationKey {
@@ -33,7 +161,7 @@ impl Display for ConfigurationKey {
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Clone)]
 #[rustfmt::skip]
 pub enum SDOption {
     Configurations( Vec<(ConfigurationKey, String)>),
@@ -337,6 +465,7 @@ impl Into<Vec<u8>> for SDOption {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub enum ServiceEntryType {
     Find,
     Offer,
@@ -351,58 +480,121 @@ impl Into<u8> for ServiceEntryType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ServiceEntry {
     data: BitArray<Msb0, [u8; 16]>,
-    options: Option<Vec<SDOption>>,
 }
 
 impl Default for ServiceEntry {
     fn default() -> Self {
         ServiceEntry {
             data: BitArray::default(),
-            options: None,
         }
     }
 }
 
+impl TryFrom<&[u8]> for ServiceEntry {
+    type Error = ();
+
+    fn try_from(buf: &[u8]) -> Result<Self, Self::Error> {
+        if buf.len() != 16 {
+            log::error!("Invalid length for ServiceEntry buffer");
+            return Err(());
+        }
+        let mut data = [0u8; 16];
+        for (i, b) in buf.iter().enumerate() {
+            data[i] = *b;
+        }
+
+        // copy the 16 bytes into the internal buffer. The only
+        // validation we do is the type field below
+        let mut entry = ServiceEntry {
+            data: BitArray::new(data),
+        };
+
+        match buf[0] {
+            0 => entry.set_service_entry_type(ServiceEntryType::Find),
+            1 => entry.set_service_entry_type(ServiceEntryType::Offer),
+            _ => return Err(()),
+        }
+
+        Ok(entry)
+    }
+}
+
 impl ServiceEntry {
-    pub fn set_type(&mut self, ty: ServiceEntryType) {
+    pub fn set_service_entry_type(&mut self, ty: ServiceEntryType) {
         let ty: u8 = ty.into();
         self.data[..8].store(ty);
     }
-    pub fn set_index_1_options(&mut self, i: u8, num_options: u8) {
+
+    pub fn service_entry_type(&self) -> Option<ServiceEntryType> {
+        let ty: u8 = self.data[..8].load();
+        match ty {
+            0 => Some(ServiceEntryType::Find),
+            1 => Some(ServiceEntryType::Offer),
+            _ => None,
+        }
+    }
+    pub fn set_index1_options(&mut self, i: u8, num_options: u8) {
         self.data[8..16].store(i);
         self.data[24..28].store(num_options);
     }
-    pub fn set_index_2_options(&mut self, i: u8, num_options: u8) {
+
+    pub fn index1_options(&self) -> (u8, u8) {
+        (self.data[8..16].load(), self.data[24..28].load())
+    }
+
+    pub fn set_index2_options(&mut self, i: u8, num_options: u8) {
         self.data[16..24].store(i);
         self.data[28..32].store(num_options);
     }
+
+    pub fn index2_options(&self) -> (u8, u8) {
+        (self.data[16..24].load(), self.data[28..32].load())
+    }
+
     pub fn set_service_id(&mut self, service_id: u16) {
         self.data[32..48].store(service_id);
+    }
+
+    pub fn service_id(&self) -> u16 {
+        self.data[32..48].load()
     }
     pub fn set_instance_id(&mut self, instance_id: u16) {
         self.data[48..64].store(instance_id);
     }
+
+    pub fn instance_id(&self) -> u16 {
+        self.data[48..64].load()
+    }
+
     pub fn set_major_version(&mut self, version: u8) {
         self.data[64..72].store(version);
+    }
+
+    pub fn major_version(&self) -> u8 {
+        self.data[64..72].load()
     }
 
     pub fn set_ttl(&mut self, ttl: u32) {
         self.data[72..96].store(ttl);
     }
 
+    pub fn ttl(&self) -> u32 {
+        self.data[72..96].load()
+    }
+
     pub fn set_minor_version(&mut self, minor_version: u32) {
         self.data[96..].store(minor_version);
     }
 
-    pub fn as_buffer(&self) -> &[u8; 16] {
-        self.data.as_buffer()
+    pub fn minor_version(&self) -> u32 {
+        self.data[96..].load()
     }
 
-    pub fn set_options(&mut self, options: Vec<SDOption>) {
-        self.options = Some(options)
+    pub fn as_buffer(&self) -> &[u8; 16] {
+        self.data.as_buffer()
     }
 }
 
@@ -453,20 +645,36 @@ impl EventGroupEntry {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
+    #[test]
+
+    fn test_sd_message() {
+        let message = SDMessage::default();
+        let pkt: SomeIpPacket = message.clone().into();
+        let new_msg = SDMessage::try_from(pkt).unwrap();
+        assert_eq!(message, new_msg);
+    }
 
     #[test]
     fn test_service_entry() {
         let mut entry = ServiceEntry::default();
-        entry.set_type(ServiceEntryType::Find);
-        entry.set_index_1_options(1, 2);
-        entry.set_index_2_options(2, 3);
+        entry.set_service_entry_type(ServiceEntryType::Find);
+        assert_eq!(entry.service_entry_type().unwrap(), ServiceEntryType::Find);
+        entry.set_index1_options(1, 2);
+        assert_eq!((1, 2), entry.index1_options());
+        entry.set_index2_options(2, 3);
+        assert_eq!((2, 3), entry.index2_options());
         entry.set_instance_id(0x9);
+        assert_eq!(0x9, entry.instance_id());
         entry.set_service_id(0x10);
+        assert_eq!(0x10, entry.service_id());
         entry.set_major_version(1);
+        assert_eq!(1, entry.major_version());
         entry.set_minor_version(0xF0F0F0F0);
+        assert_eq!(0xF0F0F0F0, entry.minor_version());
         entry.set_ttl(500);
+        assert_eq!(500, entry.ttl());
         assert_eq!(
             entry.as_buffer(),
             &[
@@ -474,6 +682,9 @@ mod tests {
                 0xF0, 0xF0
             ]
         );
+        let sl = entry.as_buffer();
+        let new_entry = ServiceEntry::try_from(&sl[..]).unwrap();
+        assert_eq!(entry, new_entry);
     }
 
     #[test]
