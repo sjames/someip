@@ -7,6 +7,7 @@ use someip_parse::SomeIpHeader;
 use std::{
     convert::TryFrom,
     fmt::Display,
+    io::ErrorKind,
     net::{Ipv4Addr, Ipv6Addr},
     option,
 };
@@ -19,6 +20,44 @@ pub struct SDMessage {
     entries: Vec<ServiceEntry>,
     options: Vec<SDOption>,
     flags_reserved: u32,
+}
+
+impl SDMessage {
+    pub fn set_options(&mut self, options: Vec<SDOption>) {
+        self.options = options;
+    }
+
+    /// Add a service Entry. The configs index and run is specified here.
+    /// Will return error if the options array does not have the corresponding entries.
+    pub fn add_entry(
+        &mut self,
+        mut entry: ServiceEntry,
+        config_index1: u8,
+        config_run1: u8,
+        config_index2: u8,
+        config_run2: u8,
+    ) -> Result<(), std::io::Error> {
+        if config_index1 > 0xF || config_run1 > 0xF || config_index2 > 0xF || config_run2 > 0xF {
+            return Err(std::io::Error::from(ErrorKind::InvalidInput));
+        }
+
+        if config_run1 > 0 && (config_index1 + config_run1) as usize >= self.options.len() {
+            log::error!("config index+run1 is out of range. Options entries don't exist");
+            return Err(std::io::Error::from(ErrorKind::NotFound));
+        }
+
+        if config_run2 > 0 && (config_index2 + config_run2) as usize >= self.options.len() {
+            log::error!("config index+run2 is out of range. Options entries don't exist");
+            return Err(std::io::Error::from(ErrorKind::NotFound));
+        }
+
+        entry.set_index1_options(config_index1, config_run1);
+        entry.set_index2_options(config_index2, config_run2);
+
+        self.entries.push(entry);
+
+        Ok(())
+    }
 }
 
 impl Default for SDMessage {
@@ -47,15 +86,15 @@ impl From<SDMessage> for SomeIpPacket {
             let e_raw = entry.as_buffer();
             payload.extend(e_raw);
         }
-        payload.put_u32(msg.options.len() as u32); //number of options
+
+        let mut option_raw = Vec::new();
         for option in msg.options {
             let o_raw: Vec<u8> = option.into();
-            payload.extend(o_raw);
+            option_raw.extend(o_raw);
         }
-        println!(
-            "SomeIpPkt from SDMessage : Payload length:{}",
-            payload.len()
-        );
+        payload.put_u32(option_raw.len() as u32); //Length of options bytes
+        payload.extend(option_raw);
+
         SomeIpPacket::new(msg.header, Bytes::from(payload))
     }
 }
@@ -73,8 +112,8 @@ impl TryFrom<SomeIpPacket> for SDMessage {
         let header = pkt.header().clone();
         let payload = pkt.payload();
 
-        println!("Pkt Header payload len: {}", pkt.header().length);
-        println!("Payload length:{}", payload.len());
+        //println!("Pkt Header payload len: {}", pkt.header().length);
+        //println!("Payload length:{}", payload.len());
 
         let flags_reserved = BigEndian::read_u32(&payload[0..]);
         let num_entries = BigEndian::read_u32(&payload[4..]) as usize;
@@ -91,6 +130,7 @@ impl TryFrom<SomeIpPacket> for SDMessage {
             if let Ok(entry) = ServiceEntry::try_from(entry) {
                 entries.push(entry);
             } else {
+                log::error!("Failed to parse ServiceENtry");
                 return Err(());
             }
         }
@@ -105,7 +145,11 @@ impl TryFrom<SomeIpPacket> for SDMessage {
         let options_buffer_slice = &options_slice[4..];
 
         if options_length_in_bytes != options_buffer_slice.len() {
-            log::error!("Inconsistent options length field");
+            log::error!(
+                "Inconsistent options length field expected:{} actual:{}",
+                options_length_in_bytes,
+                options_buffer_slice.len()
+            );
             return Err(());
         }
 
@@ -180,7 +224,7 @@ impl TryFrom<&[u8]> for SDOption {
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let length: usize = BigEndian::read_u16(&data[0..2]) as usize;
         if data.len() != length + 3 {
-            println!("Invalid length in packet");
+            log::error!("Invalid length in packet");
             return Err(());
         }
 
@@ -487,9 +531,14 @@ pub struct ServiceEntry {
 
 impl Default for ServiceEntry {
     fn default() -> Self {
-        ServiceEntry {
+        let mut entry = ServiceEntry {
             data: BitArray::default(),
-        }
+        };
+        entry.set_major_version(0xFF);
+        entry.set_minor_version(0xFFFFFFFF);
+        entry.set_instance_id(0xFFFF);
+
+        entry
     }
 }
 
@@ -536,12 +585,12 @@ impl ServiceEntry {
             _ => None,
         }
     }
-    pub fn set_index1_options(&mut self, i: u8, num_options: u8) {
+    fn set_index1_options(&mut self, i: u8, num_options: u8) {
         self.data[8..16].store(i);
         self.data[24..28].store(num_options);
     }
 
-    pub fn index1_options(&self) -> (u8, u8) {
+    fn index1_options(&self) -> (u8, u8) {
         (self.data[8..16].load(), self.data[24..28].load())
     }
 
@@ -649,11 +698,51 @@ mod tests {
 
     #[test]
 
-    fn test_sd_message() {
+    fn test_sd_message_basic() {
         let message = SDMessage::default();
         let pkt: SomeIpPacket = message.clone().into();
         let new_msg = SDMessage::try_from(pkt).unwrap();
         assert_eq!(message, new_msg);
+    }
+
+    #[test]
+    fn test_sd_message() {
+        let mut message = SDMessage::default();
+        let options = vec![
+            SDOption::Ipv4Endpoint {
+                addr: Ipv4Addr::new(127, 0, 0, 1),
+                transport: SDOptionTransportProto::TCP,
+                port: 8090,
+            },
+            SDOption::Configurations(vec![(
+                ConfigurationKey::new("ConfigKey"),
+                String::from("ConfigValue"),
+            )]),
+        ];
+        message.set_options(options);
+        let mut entry = ServiceEntry::default();
+        entry.set_service_entry_type(ServiceEntryType::Offer);
+        entry.set_service_id(42);
+        message.add_entry(entry, 0, 1, 0, 0).unwrap();
+
+        // the following must fail
+        let mut entry = ServiceEntry::default();
+        entry.set_service_entry_type(ServiceEntryType::Find);
+        entry.set_service_id(0x24);
+        if message.add_entry(entry, 0, 2, 0, 0).is_ok() {
+            panic!("This should fail");
+        }
+        // the following must fail
+        let mut entry = ServiceEntry::default();
+        entry.set_service_entry_type(ServiceEntryType::Find);
+        entry.set_service_id(0x24);
+        if message.add_entry(entry, 0, 0, 0, 2).is_ok() {
+            panic!("This should fail");
+        }
+
+        let pkt: SomeIpPacket = message.into();
+        let new_entry = SDMessage::try_from(pkt).unwrap();
+        println!("SDMessage:{:?}", new_entry);
     }
 
     #[test]
