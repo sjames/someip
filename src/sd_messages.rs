@@ -27,6 +27,34 @@ impl SDMessage {
         self.options = options;
     }
 
+    pub fn is_reboot(&self) -> bool {
+        let flags: &BitSlice<Msb0, u32> = self.flags_reserved.view_bits();
+        flags[0]
+    }
+
+    pub fn set_reboot(&mut self, reboot: bool) {
+        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        flags.set(0, reboot);
+    }
+
+    pub fn is_unicast(&self) -> bool {
+        let flags: &BitSlice<Msb0, u32> = self.flags_reserved.view_bits();
+        flags[1]
+    }
+    pub fn set_unicast(&mut self, unicast: bool) {
+        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        flags.set(1, unicast);
+    }
+    pub fn is_exp_initial_data_control(&self) -> bool {
+        let flags: BitArray<Msb0, u32> = BitArray::from(self.flags_reserved);
+        flags[2]
+    }
+
+    pub fn set_exp_initial_data_control(&mut self, initial_data_ctrl: bool) {
+        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        flags.set(2, initial_data_ctrl);
+    }
+
     /// Add a service Entry. The configs index and run is specified here.
     /// Will return error if the options array does not have the corresponding entries.
     pub fn add_entry(
@@ -724,6 +752,8 @@ mod tests {
         entry.set_service_entry_type(ServiceEntryType::Offer);
         entry.set_service_id(42);
         message.add_entry(entry, 0, 1, 0, 0).unwrap();
+        message.set_exp_initial_data_control(true);
+        message.set_reboot(true);
 
         // the following must fail
         let mut entry = ServiceEntry::default();
@@ -742,6 +772,8 @@ mod tests {
 
         let pkt: SomeIpPacket = message.into();
         let new_entry = SDMessage::try_from(pkt).unwrap();
+        assert!(new_entry.is_reboot());
+        assert!(new_entry.is_exp_initial_data_control());
         println!("SDMessage:{:?}", new_entry);
     }
 
