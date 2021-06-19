@@ -42,6 +42,8 @@ impl Server {
         mut handler: Arc<Mutex<Box<impl ServerRequestHandler + Send + 'a>>>,
         config: Configuration,
         service_id: u16,
+        major_version: u8,
+        minor_version: u32,
         notify_tcp_tx: Sender<ConnectionInfo>,
     ) -> Result<(), io::Error> {
         let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
@@ -191,7 +193,7 @@ mod tests {
                 let test_service = Box::new(TestService {});
                 let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
-                let res = Server::serve(at, service, config, 45, tx).await;
+                let res = Server::serve(at, service, config, 45, 1, 0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);

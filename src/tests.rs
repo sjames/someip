@@ -154,7 +154,7 @@ pub struct Field1 {
                 let test_service = Box::new(EchoServerImpl::default());
                 let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
-                let res = Server::serve(at, service, config, 45, tx).await;
+                let res = Server::serve(at, service, config, 45,1,0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
