@@ -48,8 +48,8 @@ impl SomeIPCodec {
     /// * `multicast_v6` - A vector of multicast IPV6 (address, interface_id) tuples.
     pub async fn create_udp_stream(
         addr: &SocketAddr,
-        multicast_v4: Option<&Vec<(Ipv4Addr, Ipv4Addr)>>,
-        multicast_v6: Option<&Vec<(Ipv6Addr, u32)>>,
+        multicast_v4: Option<Vec<(Ipv4Addr, Ipv4Addr)>>,
+        multicast_v6: Option<Vec<(Ipv6Addr, u32)>>,
     ) -> Result<UdpSomeIpConnection, io::Error> {
         if let Ok(socket) = UdpSocket::bind(addr).await {
             if let Some(multicast_v4) = multicast_v4 {
@@ -148,7 +148,7 @@ mod tests {
 
                 let ipv4s = Vec::new();
                 let ipv6 = Vec::new();
-                let stream = SomeIPCodec::create_udp_stream(&addr, Some(&ipv4s), Some(&ipv6)).await;
+                let stream = SomeIPCodec::create_udp_stream(&addr, Some(ipv4s), Some(ipv6)).await;
                 let (mut sink, _ins) = stream.unwrap().split();
 
                 let mut header = SomeIpHeader::default();

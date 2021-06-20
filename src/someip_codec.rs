@@ -5,7 +5,7 @@ use tokio_util::codec::Encoder;
 
 pub use someip_parse::{MessageType, ReturnCode, SomeIpHeader};
 // default service discovery port
-pub const SD_PORT: u32 = 30490;
+pub const SD_PORT: u16 = 30490;
 
 #[derive(Debug, Clone)]
 pub struct SomeIpPacket {

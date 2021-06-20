@@ -8,7 +8,7 @@ pub struct Configuration {
     pub repetitions_max: u32,
     pub request_response_delay: std::time::Duration,
     pub cyclic_offer_delay: std::time::Duration,
-    pub sd_port: u32,
+    pub sd_port: u16,
     pub sd_multicast_ip: IpAddr,
     pub max_packet_size_tcp: u32,
     pub reconnection_delay: std::time::Duration,

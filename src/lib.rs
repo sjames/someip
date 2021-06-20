@@ -5,6 +5,7 @@ pub mod connection;
 pub mod error;
 pub mod field;
 pub mod sd_messages;
+pub mod sd_server;
 pub mod sd_server_sm;
 pub mod server;
 pub mod someip_codec;

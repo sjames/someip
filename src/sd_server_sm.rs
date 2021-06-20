@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use crate::server;
 use rand::prelude::*;
 
@@ -49,6 +51,40 @@ pub struct Data<S> {
     inner: SMData,
 }
 
+pub struct SDServerStateMachineContainer {
+    state: Option<SDServerStateMachine>,
+}
+
+impl SDServerStateMachineContainer {
+    pub fn new(
+        set_timer: Box<dyn FnMut(u32, std::time::Duration)>,
+        clear_timer: Box<dyn FnMut(u32)>,
+        send_offer: Box<dyn FnMut()>,
+        initial_delay_min: std::time::Duration,
+        initial_delay_max: std::time::Duration,
+        repetitions_max: u32,
+        repetitions_base_delay: std::time::Duration,
+        cyclic_announce_delay: std::time::Duration,
+    ) -> Self {
+        Self {
+            state: Some(SDServerStateMachine::new(
+                set_timer,
+                clear_timer,
+                send_offer,
+                initial_delay_min,
+                initial_delay_max,
+                repetitions_max,
+                repetitions_base_delay,
+                cyclic_announce_delay,
+            )),
+        }
+    }
+
+    pub fn next(&mut self, event: SMEvent) {
+        let state = self.state.take().unwrap();
+        self.state = Some(state.next(event));
+    }
+}
 pub enum SDServerStateMachine {
     NotReady(Data<NotReady>),
     InitialWaitPhase(Data<InitialWaitPhase>),
@@ -325,8 +361,8 @@ impl State for MainPhase {}
 mod test {
     use super::*;
 
-    fn create_ready_sm() -> SDServerStateMachine {
-        let server_sm = SDServerStateMachine::new(
+    fn create_ready_sm() -> SDServerStateMachineContainer {
+        let mut server_sm = SDServerStateMachineContainer::new(
             Box::new(|timer_id, duration| {
                 println!("Setting timer {} for {:?}", timer_id, duration);
             }),
@@ -342,38 +378,53 @@ mod test {
             std::time::Duration::from_secs(1),
             std::time::Duration::from_secs(5),
         );
-        assert!(matches!(server_sm, SDServerStateMachine::NotReady(_)));
-        let server_sm = server_sm.next(SMEvent::ServiceConfiguration(true));
-        assert!(matches!(server_sm, SDServerStateMachine::NotReady(_)));
-        let server_sm = server_sm.next(SMEvent::IfStatusChanged(true));
         assert!(matches!(
-            server_sm,
-            SDServerStateMachine::InitialWaitPhase(_)
+            server_sm.state,
+            Some(SDServerStateMachine::NotReady(_))
         ));
-        let server_sm = server_sm.next(SMEvent::IfStatusChanged(false));
-        assert!(matches!(server_sm, SDServerStateMachine::NotReady(_)));
-        let server_sm = server_sm.next(SMEvent::IfStatusChanged(true));
+        server_sm.next(SMEvent::ServiceConfiguration(true));
         assert!(matches!(
-            server_sm,
-            SDServerStateMachine::InitialWaitPhase(_)
+            server_sm.state,
+            Some(SDServerStateMachine::NotReady(_))
+        ));
+        server_sm.next(SMEvent::IfStatusChanged(true));
+        assert!(matches!(
+            server_sm.state,
+            Some(SDServerStateMachine::InitialWaitPhase(_))
+        ));
+        server_sm.next(SMEvent::IfStatusChanged(false));
+        assert!(matches!(
+            server_sm.state,
+            Some(SDServerStateMachine::NotReady(_))
+        ));
+        server_sm.next(SMEvent::IfStatusChanged(true));
+        assert!(matches!(
+            server_sm.state,
+            Some(SDServerStateMachine::InitialWaitPhase(_))
         ));
         server_sm
     }
 
     #[test]
     fn test_happy_path() {
-        let sm = create_ready_sm();
-        let sm = sm.next(SMEvent::Timeout(0));
-        assert!(matches!(sm, SDServerStateMachine::RepetitionPhase(_)));
-        let sm = sm.next(SMEvent::Timeout(1));
-        assert!(matches!(sm, SDServerStateMachine::RepetitionPhase(_)));
-        let sm = sm.next(SMEvent::Timeout(1));
-        let sm = sm.next(SMEvent::Timeout(1));
-        let sm = sm.next(SMEvent::Timeout(1));
-        assert!(matches!(sm, SDServerStateMachine::MainPhase(_)));
-        let sm = sm.next(SMEvent::Timeout(2));
-        assert!(matches!(sm, SDServerStateMachine::MainPhase(_)));
-        let sm = sm.next(SMEvent::IfStatusChanged(false));
-        assert!(matches!(sm, SDServerStateMachine::NotReady(_)));
+        let mut sm = create_ready_sm();
+        sm.next(SMEvent::Timeout(0));
+        assert!(matches!(
+            sm.state,
+            Some(SDServerStateMachine::RepetitionPhase(_))
+        ));
+        sm.next(SMEvent::Timeout(1));
+        assert!(matches!(
+            sm.state,
+            Some(SDServerStateMachine::RepetitionPhase(_))
+        ));
+        sm.next(SMEvent::Timeout(1));
+        sm.next(SMEvent::Timeout(1));
+        sm.next(SMEvent::Timeout(1));
+        assert!(matches!(sm.state, Some(SDServerStateMachine::MainPhase(_))));
+        sm.next(SMEvent::Timeout(2));
+        assert!(matches!(sm.state, Some(SDServerStateMachine::MainPhase(_))));
+        sm.next(SMEvent::IfStatusChanged(false));
+        assert!(matches!(sm.state, Some(SDServerStateMachine::NotReady(_))));
     }
 }
