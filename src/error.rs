@@ -10,12 +10,6 @@ pub enum FieldError {
     Unknown,
 }
 
-#[derive(Error, Debug, Deserialize, Serialize)]
-pub enum Error {
-    #[error("unknown error")]
-    Unknown,
-}
-
 #[derive(Error, Debug)]
 pub enum MethodError<T>
 where
@@ -55,4 +49,13 @@ pub enum PropertyError {
     InvalidResponsePayload,
     #[error("Call was cancelled")]
     Cancelled,
+}
+
+/// Generic errors
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("Connection error")]
+    ConnectionError,
+    #[error("IO Error")]
+    IoError(#[from] io::Error),
 }

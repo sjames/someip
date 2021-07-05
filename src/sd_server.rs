@@ -37,38 +37,40 @@ enum SDServerInternalMessage {
 }
 
 enum TimerCommand {
-    SetTimer(u32, std::time::Duration),
-    ResetTimer(u32),
+    SetTimer(u16, u16, std::time::Duration),
+    ResetTimer(u16, u16),
 }
 enum TimerEvent {
-    Timeout(u32),
+    Timeout(u16, u16),
 }
 
 async fn timer(mut timer_cmd_rx: Receiver<TimerCommand>, timer_tx: Sender<TimerEvent>) {
-    let mut delay_queue: DelayQueue<u32> = DelayQueue::new();
-    delay_queue.insert(0xff, std::time::Duration::from_secs(100));
-    let mut pending_keys: Vec<(u32, Key)> = Vec::new();
+    //  (timerid:u16, service_id:u16)
+    let mut delay_queue: DelayQueue<(u16, u16)> = DelayQueue::new();
+    delay_queue.insert((0xff, 0), std::time::Duration::from_secs(100));
+    let mut pending_keys: Vec<(u16, u16, Key)> = Vec::new();
     loop {
         tokio::select! {
             Some(Ok(value)) = delay_queue.next() => {
                 let value = value.into_inner();
-                if value == 0xff {
+                if value.0 == 0xff {
                     // always keep an entry to prevent from emptying the queue
-                    delay_queue.insert(0xff, std::time::Duration::from_secs(100));
-                } else if let Some(pos) = pending_keys.iter().position(|e| e.0 == value) {
+                    //
+                    delay_queue.insert((0xff,0), std::time::Duration::from_secs(100));
+                } else if let Some(pos) = pending_keys.iter().position(|e| e.0 == value.0) {
                     pending_keys.swap_remove(pos);
-                    let _res = timer_tx.send(TimerEvent::Timeout(value)).await;
+                    let _res = timer_tx.send(TimerEvent::Timeout(value.0, value.1)).await;
                 }
             }
             Some(cmd) = timer_cmd_rx.recv() => {
                 match cmd {
-                    TimerCommand::SetTimer(id, timeout) => {
-                        let key = delay_queue.insert(id, timeout);
-                        pending_keys.push((id,key));
+                    TimerCommand::SetTimer(id, service_id,timeout) => {
+                        let key = delay_queue.insert((id,service_id), timeout);
+                        pending_keys.push((id,service_id,key));
                     },
-                    TimerCommand::ResetTimer(id) => {
-                        if let Some(pos) = pending_keys.iter().position(|e| e.0 == id) {
-                            let _ = delay_queue.remove(&pending_keys[pos].1);
+                    TimerCommand::ResetTimer(id, service_id) => {
+                        if let Some(pos) = pending_keys.iter().position(|e| e.0 == id && e.1 == service_id) {
+                            let _ = delay_queue.remove(&pending_keys[pos].2);
                             pending_keys.swap_remove(pos);
 
                         }
@@ -101,6 +103,11 @@ pub async fn sd_server_task(
         IpAddr::V6(addr) => Some(vec![(addr, 0)]),
     };
 
+    log::debug!("Starting timer");
+    let (timer_cmd_tx, timer_cmd_rx) = channel::<TimerCommand>(1);
+    let (timer_tx, mut timer_rx) = channel::<TimerEvent>(1);
+    let _timer_task = tokio::spawn(async move { timer(timer_cmd_rx, timer_tx).await });
+
     log::debug!("Starting Service Discovery server task");
     if let Ok(udp_stream) =
         SomeIPCodec::create_udp_stream(&udp_addr, ipv4_multicasts, ipv6_multicasts).await
@@ -109,6 +116,8 @@ pub async fn sd_server_task(
         let (dispatch_tx, mut dispatch_rx) = channel::<SDServerInternalMessage>(1);
 
         loop {
+            let timer_cmd_set_tx = timer_cmd_tx.clone();
+            let timer_cmd_reset_tx = timer_cmd_tx.clone();
             tokio::select! {
                 Some(Ok((packet,addr))) = rx.next() => {
                     if packet.header().is_someip_sd() {
@@ -132,11 +141,15 @@ pub async fn sd_server_task(
                                 service.1.next(SMEvent::ServiceConfiguration(enabled));
                             } else {
                                 let mut service_sm = SDServerStateMachineContainer::new(
-                                    Box::new(|timer_id, duration| {
-                                        println!("Setting timer {} for {:?}", timer_id, duration);
+                                    service_id,
+                                    Box::new( move |timer_id, duration| {
+                                        println!("Setting timer {} for {:?} service_id:{}", timer_id, duration,service_id);
+                                        let _ = timer_cmd_set_tx.blocking_send(TimerCommand::SetTimer(timer_id,service_id,duration));
+
                                     }),
-                                    Box::new(|timer_id| {
+                                    Box::new(move |timer_id, service_id| {
                                         println!("Resetting timer {} ", timer_id);
+                                        let _ = timer_cmd_reset_tx.blocking_send(TimerCommand::ResetTimer(timer_id,service_id));
                                     }),
                                     Box::new(move || {
                                         println!("Send Offer");
@@ -191,70 +204,22 @@ pub async fn sd_server_task(
                         SDServerInternalMessage::StopOfferService(_) => todo!(),
                     }
                 }
-            }
-        }
-
-        /*
-        loop {
-            tokio::select! {
-                Some(Ok(packet)) = rx.next() => {
-                        let (packet, addr) = packet;
-                        if packet.header().service_id() != service_id {
-                             log::error!(
-                                 "(UDP:{})Invalid service ID({}) in packet for service {}\n packet:{:?}",udp_addr,
-                                 packet.header().service_id(), service_id, packet.header()
-                             );
-                            if packet.header().message_type != MessageType::RequestNoReturn {
-                                let error = SomeIpPacket::error_packet_from(
-                                    packet,
-                                    someip_parse::ReturnCode::UnknownService,
-                                    Bytes::new()
-                                );
-                                tx.send((error, addr)).await?;
-                            }
-                            continue;
-                        }
-                        if let Err(e) = dx_tx
-                            .send(DispatcherCommand::DispatchUdp(packet, dispatch_tx.clone()))
-                            .await
-                        {
-                            log::error!("Error sending to dispatcher:{}", e);
-                            break;
-                        } else if let Some(r) = dispatch_reply.recv().await {
-                            if let DispatcherReply::ResponsePacket(Some(packet)) = r {
-                                if let Err(_e) = tx.send((packet, addr)).await {
-                                    log::error!("Error sending response over TCP");
-                                    break;
-                                }
-                            }
-                        } else {
-                            log::error!("Unable to receive reply from dispatcher");
-                            break;
-                        }
-                }
-                Some(msg) = connection_control_rx.recv() => {
-                    match msg {
-                        ConnectionMessage::SendUdpNotification((packet,ip)) => {
-                            if packet.header().message_type == MessageType::Notification {
-                                log::debug!("Sending notification packet");
-                                if let Err(_e) = tx.send((packet, ip)).await {
-                                    log::error!("Error sending response over TCP");
-                                    break;
-                                }
-
+                //Timer timeouts
+                Some(cmd) = timer_rx.recv() => {
+                    match cmd {
+                        TimerEvent::Timeout(id,service_id) => {
+                            log::debug!("Timeout");
+                            if let Some(service) = services.iter_mut().find(|e|e.0 == service_id) {
+                                // this service already exists
+                                service.1.next(SMEvent::Timeout(id, service_id));
                             } else {
-                                log::error!("Ignoring a packet that is not of Notification type for {}", ip)
+                                log::error!("Ignored unexpected timeout for service {}", service_id);
                             }
-                        }
-                        _ => {
-                            log::error!("Only UDP notifications can be sent over Udp Connection ");
-                        }
+                        },
                     }
                 }
-
-            };
+            }
         }
-        */
     } else {
         log::error!("Unable to bind to UDP");
     }

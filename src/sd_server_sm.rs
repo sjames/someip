@@ -20,15 +20,16 @@ pub trait State {
 pub enum SMEvent {
     IfStatusChanged(bool),
     ServiceConfiguration(bool),
-    Timeout(u32),
+    Timeout(u16, u16),
     FindService,
 }
 
 struct SMData {
     interface_status: bool,
     service_status: bool,
-    set_timer: Box<dyn FnMut(u32, std::time::Duration)>,
-    clear_timer: Box<dyn FnMut(u32)>,
+    service_id: u16,
+    set_timer: Box<dyn FnMut(u16, std::time::Duration)>,
+    clear_timer: Box<dyn FnMut(u16, u16)>,
     send_offer: Box<dyn FnMut()>,
     initial_delay_min: std::time::Duration,
     initial_delay_max: std::time::Duration,
@@ -57,8 +58,9 @@ pub struct SDServerStateMachineContainer {
 
 impl SDServerStateMachineContainer {
     pub fn new(
-        set_timer: Box<dyn FnMut(u32, std::time::Duration)>,
-        clear_timer: Box<dyn FnMut(u32)>,
+        service_id: u16,
+        set_timer: Box<dyn FnMut(u16, std::time::Duration)>,
+        clear_timer: Box<dyn FnMut(u16, u16)>,
         send_offer: Box<dyn FnMut()>,
         initial_delay_min: std::time::Duration,
         initial_delay_max: std::time::Duration,
@@ -68,6 +70,7 @@ impl SDServerStateMachineContainer {
     ) -> Self {
         Self {
             state: Some(SDServerStateMachine::new(
+                service_id,
                 set_timer,
                 clear_timer,
                 send_offer,
@@ -94,8 +97,9 @@ pub enum SDServerStateMachine {
 
 impl SDServerStateMachine {
     pub fn new(
-        set_timer: Box<dyn FnMut(u32, std::time::Duration)>,
-        clear_timer: Box<dyn FnMut(u32)>,
+        service_id: u16,
+        set_timer: Box<dyn FnMut(u16, std::time::Duration)>,
+        clear_timer: Box<dyn FnMut(u16, u16)>,
         send_offer: Box<dyn FnMut()>,
         initial_delay_min: std::time::Duration,
         initial_delay_max: std::time::Duration,
@@ -108,6 +112,7 @@ impl SDServerStateMachine {
             inner: SMData {
                 interface_status: false,
                 service_status: false,
+                service_id,
                 set_timer,
                 clear_timer,
                 send_offer,
@@ -219,7 +224,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::NotReady(d)
                 }
             }
-            (SDServerStateMachine::NotReady(d), SMEvent::Timeout(_)) => {
+            (SDServerStateMachine::NotReady(d), SMEvent::Timeout(_, _)) => {
                 panic!("This should not happen")
             }
             // don't do anything if not ready
@@ -236,7 +241,7 @@ impl State for SDServerStateMachine {
                 if d.inner.interface_status && d.inner.service_status {
                     SDServerStateMachine::InitialWaitPhase(d)
                 } else {
-                    (d.inner.clear_timer)(0);
+                    (d.inner.clear_timer)(0, d.inner.service_id);
                     SDServerStateMachine::NotReady(d.into())
                 }
             }
@@ -249,12 +254,12 @@ impl State for SDServerStateMachine {
                 if d.inner.interface_status && d.inner.service_status {
                     SDServerStateMachine::InitialWaitPhase(d)
                 } else {
-                    (d.inner.clear_timer)(0);
+                    (d.inner.clear_timer)(0, d.inner.service_id);
                     SDServerStateMachine::NotReady(d.into())
                 }
             }
             //Timeout in Initial wait phase. Timer id should be 0
-            (SDServerStateMachine::InitialWaitPhase(mut d), SMEvent::Timeout(tid)) => {
+            (SDServerStateMachine::InitialWaitPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
                 if tid == 0 {
                     //todo: SendOffer service
                     (d.inner.set_timer)(1, d.inner.repetitions_base_delay);
@@ -291,7 +296,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::RepetitionPhase(d)
                 }
             }
-            (SDServerStateMachine::RepetitionPhase(mut d), SMEvent::Timeout(tid)) => {
+            (SDServerStateMachine::RepetitionPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
                 (d.inner.send_offer)();
                 d.state.run += 1;
                 assert!(tid == 1);
@@ -304,7 +309,7 @@ impl State for SDServerStateMachine {
                 }
             }
             (SDServerStateMachine::RepetitionPhase(mut d), SMEvent::FindService) => {
-                (d.inner.clear_timer)(1); // reset the timer
+                (d.inner.clear_timer)(1, d.inner.service_id); // reset the timer
                 (d.inner.send_offer)();
                 (d.inner.set_timer)(1, d.inner.repetitions_base_delay);
                 SDServerStateMachine::RepetitionPhase(d)
@@ -325,14 +330,14 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::MainPhase(d)
                 }
             }
-            (SDServerStateMachine::MainPhase(mut d), SMEvent::Timeout(tid)) => {
+            (SDServerStateMachine::MainPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
                 assert!(tid == 2);
                 (d.inner.send_offer)();
                 (d.inner.set_timer)(2, d.inner.cyclic_announce_delay);
                 SDServerStateMachine::MainPhase(d)
             }
             (SDServerStateMachine::MainPhase(mut d), SMEvent::FindService) => {
-                (d.inner.clear_timer)(2); // reset the timer
+                (d.inner.clear_timer)(2, d.inner.service_id); // reset the timer
                 (d.inner.send_offer)();
                 (d.inner.set_timer)(2, d.inner.repetitions_base_delay);
                 SDServerStateMachine::MainPhase(d)
@@ -363,10 +368,11 @@ mod test {
 
     fn create_ready_sm() -> SDServerStateMachineContainer {
         let mut server_sm = SDServerStateMachineContainer::new(
+            0x42,
             Box::new(|timer_id, duration| {
                 println!("Setting timer {} for {:?}", timer_id, duration);
             }),
-            Box::new(|timer_id| {
+            Box::new(|timer_id, service_id| {
                 println!("Resetting timer {} ", timer_id);
             }),
             Box::new(|| {
@@ -408,21 +414,21 @@ mod test {
     #[test]
     fn test_happy_path() {
         let mut sm = create_ready_sm();
-        sm.next(SMEvent::Timeout(0));
+        sm.next(SMEvent::Timeout(0, 42));
         assert!(matches!(
             sm.state,
             Some(SDServerStateMachine::RepetitionPhase(_))
         ));
-        sm.next(SMEvent::Timeout(1));
+        sm.next(SMEvent::Timeout(1, 42));
         assert!(matches!(
             sm.state,
             Some(SDServerStateMachine::RepetitionPhase(_))
         ));
-        sm.next(SMEvent::Timeout(1));
-        sm.next(SMEvent::Timeout(1));
-        sm.next(SMEvent::Timeout(1));
+        sm.next(SMEvent::Timeout(1, 42));
+        sm.next(SMEvent::Timeout(1, 42));
+        sm.next(SMEvent::Timeout(1, 42));
         assert!(matches!(sm.state, Some(SDServerStateMachine::MainPhase(_))));
-        sm.next(SMEvent::Timeout(2));
+        sm.next(SMEvent::Timeout(2, 42));
         assert!(matches!(sm.state, Some(SDServerStateMachine::MainPhase(_))));
         sm.next(SMEvent::IfStatusChanged(false));
         assert!(matches!(sm.state, Some(SDServerStateMachine::NotReady(_))));
