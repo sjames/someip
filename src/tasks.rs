@@ -6,8 +6,11 @@ use std::{
     io,
     net::{IpAddr, SocketAddr},
 };
-use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
+use tokio::{
+    net::{UnixListener, UnixStream},
+    sync::mpsc::channel,
+};
 
 pub enum DispatcherCommand {
     Terminate,
@@ -17,6 +20,8 @@ pub enum DispatcherCommand {
     // dispatch a received Tcp packet. The sender to send the reply is sent as a part of the
     // message
     DispatchTcp(SomeIpPacket, Sender<DispatcherReply>),
+    // dispatch a received UDS packet. The sender to send the reply is set as a part of the message
+    DispatchUds(SomeIpPacket, Sender<DispatcherReply>),
 }
 
 pub enum DispatcherReply {
@@ -179,6 +184,42 @@ pub async fn tcp_server_task(
         }
         log::debug!("End TCP listening");
     }
+}
+
+pub async fn uds_task(dx_tx: Sender<DispatcherCommand>, uds: UnixStream) -> Result<(), io::Error> {
+    let uds_stream = SomeIPCodec::create_uds_stream(uds).await?;
+    let (mut tx, mut rx) = uds_stream.split();
+    let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
+
+    loop {
+        tokio::select! {
+           Some(Ok(packet)) = rx.next() => {
+                   let packet  = packet;
+                   if let Err(e) = dx_tx
+                       .send(DispatcherCommand::DispatchUdp(packet, dispatch_tx.clone()))
+                       .await
+                   {
+                       log::error!("Error sending to dispatcher:{}", e);
+                       break;
+                   } else if let Some(r) = dispatch_reply.recv().await {
+                       if let DispatcherReply::ResponsePacket(Some(packet)) = r {
+                           if let Err(_e) = tx.send(packet).await {
+                               log::error!("Error sending response over TCP");
+                               break;
+                           }
+                       }
+                   } else {
+                       log::error!("Unable to receive reply from dispatcher");
+                       break;
+                   }
+           }
+        };
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::ConnectionAborted,
+        "UDS server",
+    ))
 }
 
 pub async fn udp_task(

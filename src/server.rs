@@ -1,13 +1,14 @@
 // A SOME/IP server (provider)
 
 use std::{io, net::SocketAddr, sync::Arc, sync::Mutex};
+use tokio::net::UnixStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use tokio::sync::mpsc::channel;
 
 use crate::config::Configuration;
 use crate::someip_codec::SomeIpPacket;
-use crate::tasks::{tcp_server_task, udp_task};
+use crate::tasks::{tcp_server_task, udp_task, uds_task};
 use crate::{ConnectionInfo, DispatcherCommand, DispatcherReply};
 
 pub struct Server {}
@@ -35,6 +36,56 @@ pub trait ServerRequestHandler {
 }
 
 impl Server {
+    /// Serve services on a UDS connection.
+    ///
+    /// Since UDS doesn't have the concept of ports, we allow multiple service IDs on a single connection.
+    /// the handlers variable is a slice of (service_id, handler, major_version, minor_version)
+    /// This call does not return as long as the connection is active.
+    pub async fn serve_uds<'a>(
+        uds: UnixStream,
+        mut handlers: &mut [(
+            u16,                                                    // service_id
+            Arc<Mutex<Box<impl ServerRequestHandler + Send + 'a>>>, // handler
+            u8,                                                     // major number
+            u32,                                                    // minor number
+        )],
+    ) -> Result<(), io::Error> {
+        let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
+        let uds_task = tokio::spawn(async move { uds_task(dx_tx, uds).await });
+
+        loop {
+            if let Some(command) = dx_rx.recv().await {
+                let (response, tx) = match command {
+                    DispatcherCommand::DispatchUds(packet, tx) => {
+                        if let Some(handler) = handlers.iter_mut().find_map(|e| {
+                            if packet.header().service_id() == e.0 {
+                                Some(e)
+                            } else {
+                                None
+                            }
+                        }) {
+                            (Self::server_dispatch(&mut handler.1, packet), tx)
+                        } else {
+                            panic!("{}", "unhandled service id");
+                        }
+                    }
+                    DispatcherCommand::DispatchUdp(_, _) => {
+                        panic!("{}", "UDP is not expected here");
+                    }
+                    DispatcherCommand::DispatchTcp(_, _) => {
+                        panic!("{}", "TCP is not expected here");
+                    }
+                    DispatcherCommand::Terminate => {
+                        log::debug!("Dispatcher terminating");
+                        break;
+                    }
+                };
+            }
+        }
+
+        Ok(())
+    }
+
     /// start serving.  This function doesn't return unless there is an
     /// unrecoverable error.
     pub async fn serve<'a>(
@@ -74,6 +125,9 @@ impl Server {
                     DispatcherCommand::Terminate => {
                         log::debug!("Dispatcher terminating");
                         break;
+                    }
+                    DispatcherCommand::DispatchUds(_, _) => {
+                        panic!("{}", "UDS is not expected here");
                     }
                 };
                 if let Err(_e) = tx.send(DispatcherReply::ResponsePacket(response)).await {

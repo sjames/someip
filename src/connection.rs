@@ -1,5 +1,6 @@
 pub use crate::someip_codec::SomeIPCodec;
 
+use futures::io::ReadHalf;
 use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
@@ -72,6 +73,10 @@ impl SomeIPCodec {
                 "Cannot bind UDP socket",
             ))
         }
+    }
+
+    pub async fn create_uds_stream(uds: UnixStream) -> Result<UdsSomeIpConnection, io::Error> {
+        Ok(Framed::new(uds, SomeIPCodec::new(1400)))
     }
 }
 
