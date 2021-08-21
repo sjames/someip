@@ -75,13 +75,14 @@ impl SomeIPCodec {
         }
     }
 
-    pub async fn create_uds_stream(uds: UnixStream) -> Result<UdsSomeIpConnection, io::Error> {
+    pub fn create_uds_stream(uds: UnixStream) -> Result<UdsSomeIpConnection, io::Error> {
         Ok(Framed::new(uds, SomeIPCodec::new(1400)))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
     use std::fmt::Write;
 
     use crate::SomeIpPacket;
@@ -91,6 +92,44 @@ mod tests {
     use futures::{SinkExt, StreamExt};
     use someip_parse::SomeIpHeader;
 
+    #[test]
+    fn test_uds() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        let _r = rt.block_on(async {
+            let (tx, rx) = UnixStream::pair().unwrap();
+            let mut stream = SomeIPCodec::create_uds_stream(rx).unwrap();
+
+            rt.spawn(async {
+                let mut sink = SomeIPCodec::create_uds_stream(tx).unwrap();
+                let mut header = SomeIpHeader::default();
+                header.set_service_id(42);
+                header.set_method_or_event_id(67);
+                let mut payload = BytesMut::with_capacity(10);
+                payload.write_str("THIS IS A TEST").expect("payload write");
+                let packet = SomeIpPacket::new(header, payload.freeze());
+                let _res = sink.send(packet).await;
+            });
+
+            loop {
+                if let Some(pkt) = stream.next().await {
+                    if let Ok(packet) = pkt {
+                        println!("Packet received:{:?}", &packet);
+                        assert_eq!(packet.header().service_id(), 42);
+                        assert_eq!(packet.header().event_or_method_id(), 67);
+                        let mut payload = BytesMut::with_capacity(10);
+                        payload.write_str("THIS IS A TEST").expect("payload write");
+                        assert_eq!(payload, packet.payload());
+                        break;
+                    } else {
+                        panic!("Packet not received");
+                    }
+                }
+            }
+        });
+    }
+
+    #[test]
     fn test_loopback() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 

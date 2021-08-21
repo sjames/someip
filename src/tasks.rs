@@ -187,7 +187,7 @@ pub async fn tcp_server_task(
 }
 
 pub async fn uds_task(dx_tx: Sender<DispatcherCommand>, uds: UnixStream) -> Result<(), io::Error> {
-    let uds_stream = SomeIPCodec::create_uds_stream(uds).await?;
+    let uds_stream = SomeIPCodec::create_uds_stream(uds)?;
     let (mut tx, mut rx) = uds_stream.split();
     let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
 
