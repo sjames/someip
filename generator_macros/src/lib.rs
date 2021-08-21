@@ -700,6 +700,7 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
 
             let struct_name = input_struct_name_from_method(m);
             let struct_tokens = quote! {
+                #[allow(non_camel_case_types)]
                 #[derive(Serialize, Deserialize)]
                 struct #struct_name {
                     #(#input_args),*
