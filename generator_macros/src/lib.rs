@@ -109,6 +109,14 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 };
                 client.run(to).await
             }
+
+            pub async fn run_uds(self, to: tokio::net::UnixStream ) -> Result<(), io::Error> {
+                let client = {
+                    let client = self._client.clone();
+                    client
+                };
+                client.run_uds(to).await
+            }
         }
     };
 
@@ -258,14 +266,17 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                         }
                         MessageType::Request => {
                             log::error!("Proxy received Request packet. Ignored");
+                            println!("Client call error1");
                             Err(MethodError::ConnectionError)
                         }
                         MessageType::RequestNoReturn => {
                             log::error!("Proxy received RequestNoReturn packet. Ignored");
+                            println!("Client call error2");
                             Err(MethodError::ConnectionError)
                         }
                         MessageType::Notification => {
                             log::error!("Proxy received Notification packet as response. Ignored");
+                            println!("Client call error3");
                             Err(MethodError::ConnectionError)
                         }
                         MessageType::Error => {

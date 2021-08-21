@@ -196,7 +196,7 @@ pub async fn uds_task(dx_tx: Sender<DispatcherCommand>, uds: UnixStream) -> Resu
            Some(Ok(packet)) = rx.next() => {
                    let packet  = packet;
                    if let Err(e) = dx_tx
-                       .send(DispatcherCommand::DispatchUdp(packet, dispatch_tx.clone()))
+                       .send(DispatcherCommand::DispatchUds(packet, dispatch_tx.clone()))
                        .await
                    {
                        log::error!("Error sending to dispatcher:{}", e);

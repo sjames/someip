@@ -1,7 +1,7 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    io,
+    io::{self, Error},
     net::SocketAddr,
     pin::Pin,
     sync::{
@@ -13,7 +13,11 @@ use std::{
 
 use futures::{Future, SinkExt, StreamExt};
 
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::{
+    net::{TcpStream, UnixStream},
+    sync::mpsc::{channel, Receiver, Sender},
+};
+use tokio_util::codec::Framed;
 
 use crate::someip_codec::{MessageType, SomeIpPacket};
 use crate::{config::Configuration, someip_codec::SomeIPCodec};
@@ -108,6 +112,16 @@ impl Client {
         tcp_client_dispatcher(&config, to, dispatch_rx, pending_calls).await
     }
 
+    pub async fn run_uds(&self, on: tokio::net::UnixStream) -> Result<(), io::Error> {
+        let (config, dispatch_rx, pending_calls) = {
+            let inner = self.inner();
+            //let client = this.read().unwrap();
+            let dispatch_rx = inner.dispatch_rx.lock().unwrap().take().unwrap();
+            let config = inner.config.clone();
+            (config, dispatch_rx, inner.pending_calls.clone())
+        };
+        uds_client_dispatcher(on, dispatch_rx, pending_calls).await
+    }
     /*
     pub async fn run_static(&self, to: SocketAddr) -> Result<(), io::Error> {
         let (config, dispatch_rx, pending_calls) = {
@@ -141,7 +155,7 @@ impl Client {
             message.header_mut().request_id = request_id;
             message.header_mut().set_service_id(inner.service_id);
 
-            println!("Pkt: {:?}", message.header());
+            log::debug!("Call:Pkt: {:?}", message.header());
 
             // add to pending call list
             {
@@ -285,6 +299,57 @@ enum DispatcherMessage {
     Call(SomeIpPacket),
 }
 
+async fn uds_client_dispatcher(
+    unix_stream: UnixStream,
+    mut dispatch_rx: Receiver<DispatcherMessage>,
+    pending_calls: PendingCalls,
+) -> Result<(), io::Error> {
+    let stream = SomeIPCodec::create_uds_stream(unix_stream).unwrap();
+    let (mut tx, mut rx) = stream.split();
+    loop {
+        tokio::select! {
+           Some(message) = dispatch_rx.recv() => {
+               match message {
+                   DispatcherMessage::Call(pkt) => {
+                       if pkt.header().message_type != MessageType::Request &&
+                       pkt.header().message_type != MessageType::RequestNoReturn {
+                           log::error!("Invalid request type. Considering this fatal");
+                           break;
+                       }
+
+                       if let Err(e) = tx.send(pkt).await {
+                           log::error!("Error sending Request Packet:{}",e);
+                           break;
+                       }
+                   }
+               }
+           }
+           // Received packets
+           Some(Ok(pkt)) = rx.next() => {
+               match pkt.header().message_type {
+                   MessageType::Response | MessageType::Error => {
+                       let request_id = pkt.header().request_id;
+                       let mut pending_calls = pending_calls.lock().unwrap();
+                       if let Some(mut pending) = pending_calls.get_mut(&request_id) {
+                           pending.2 = ReplyData::Completed(pkt);
+                           if let Some(w) = pending.3.take() { w.wake() }
+                       } else {
+                           log::info!("Response for request_id({}) received but it was not pending", request_id);
+                       }
+                   }
+                   MessageType::Notification => {
+                       todo!()
+                   }
+                   _ => {
+                       log::error!("Unexpected packet type in client: {:?}", pkt.header().message_type);
+                   }
+               }
+           }
+        } // end tokio::select
+    }
+    Err(Error::new(io::ErrorKind::BrokenPipe, ""))
+}
+
 async fn tcp_client_dispatcher(
     config: &Configuration,
     to: SocketAddr,
@@ -296,7 +361,7 @@ async fn tcp_client_dispatcher(
             .connect(&to)
             .await
         {
-            println!("New client connection");
+            // println!("New client connection");
             //let mut session_id: u16 = 0;
 
             let (mut tx, mut rx) = tcp_stream.split();
@@ -340,7 +405,6 @@ async fn tcp_client_dispatcher(
                             }
                         }
                     }
-                    // TODO: Handle timeout
                 } // end tokio::select
             }
         }

@@ -5,7 +5,7 @@ use crate::error::MethodError;
 use super::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tokio::runtime::Runtime;
+use tokio::{net::UnixStream, runtime::Runtime};
 
 use generator_macros::*;
 use std::io;
@@ -233,3 +233,98 @@ pub struct Field1 {
 
         });
     }
+
+    #[test]
+    pub fn echo_uds_tests() {
+    
+        let rt = Runtime::new().unwrap();
+        let config = Configuration::default();
+    
+        let _result = rt.block_on(async {
+    
+            let (server,client) = UnixStream::pair().unwrap();
+    
+            tokio::spawn(async move {
+                let test_service = Box::new(EchoServerImpl::default());
+                let service = Arc::new(Mutex::new(test_service));
+                println!("Going to run server");
+                let mut handlers = [(45, service, 1, 0)];
+                let res = Server::serve_uds(server, &mut handlers).await;
+                println!("Server terminated");
+                if let Err(e) = res {
+                    println!("Server error:{}", e);
+                }
+            });
+    
+            async_std::task::sleep(Duration::from_millis(20)).await;
+    
+            let config = Configuration::default();
+            let mut proxy = EchoServerProxy::new(45, 0, config);
+            let proxy_for_task = proxy.clone();
+  
+            tokio::spawn(async move { EchoServerProxy::run_uds(proxy_for_task,client).await});
+    
+            let prop = CallProperties::default();
+
+            let task = tokio::spawn(async move {
+                for i in 1..25 {
+                let res = proxy.echo_string(String::from("Hello World"), &prop).await;
+                assert_eq!(res.unwrap(),String::from("Hello World"));
+
+                let res = proxy.echo_string(String::from("Hello World2"),&prop).await;
+                assert_eq!(res.unwrap(),String::from("Hello World2"));
+         
+                let res = proxy.echo_string(String::from("This should timeout"), &CallProperties::with_timeout(std::time::Duration::from_nanos(1))).await;
+        
+                match res {
+                    Ok(r) => {
+                        panic!("This should have failed");
+                    },
+                    Err(e) => {
+
+                    }
+                }
+    
+
+                let res = proxy.no_reply(Field1::default(),&prop).await;
+                assert_eq!(res, Ok(()));
+
+                let res = proxy.echo_int(42i32,&prop).await;
+                assert_eq!(42i32, res.unwrap());
+
+                let res = proxy.echo_u64(42,&prop).await;
+                assert_eq!(42u64, res.unwrap());
+
+                proxy.value1.set(Field1::default()).await.unwrap();
+                let _val = proxy.value1.refresh().await.unwrap();
+                //println!("Val: {:?}", proxy.value1.get_cached());
+
+                
+                
+
+                let field = Field1 {
+                    a: 75,
+                    b: 56,
+                    c:String::from("This is a string"),
+                    d: vec![String::from("foo"), String::from("bar")],
+                    e: vec![1,2,3,4,5,6,7],
+                    map: SubField {
+                        a: 5,
+                        b: String::from("baz"),
+                        c: HashMap::new(),
+                    },
+                };
+                
+                let returned = field.clone();
+                let res = proxy.echo_struct(field,&prop).await;
+                assert_eq!(returned, res.unwrap());
+            }
+
+    
+            });
+            let _ = task.await;
+
+        });
+    }
+    
+

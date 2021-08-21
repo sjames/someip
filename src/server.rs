@@ -80,6 +80,10 @@ impl Server {
                         break;
                     }
                 };
+                if let Err(_e) = tx.send(DispatcherReply::ResponsePacket(response)).await {
+                    log::error!("Error sending response to UDS task");
+                    break;
+                }
             }
         }
 
