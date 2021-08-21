@@ -41,20 +41,21 @@ impl Server {
     /// Since UDS doesn't have the concept of ports, we allow multiple service IDs on a single connection.
     /// the handlers variable is a slice of (service_id, handler, major_version, minor_version)
     /// This call does not return as long as the connection is active.
-    pub async fn serve_uds<'a>(
+    pub async fn serve_uds(
         uds: UnixStream,
-        mut handlers: &mut [(
-            u16,                                                    // service_id
-            Arc<Mutex<Box<impl ServerRequestHandler + Send + 'a>>>, // handler
-            u8,                                                     // major number
-            u32,                                                    // minor number
-        )],
+        mut handlers: Vec<(
+            u16,                                              // service_id
+            Arc<Mutex<Box<dyn ServerRequestHandler + Send>>>, // handler
+            u8,                                               // major number
+            u32,                                              // minor number
+        )>,
     ) -> Result<(), io::Error> {
         let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
         let uds_task = tokio::spawn(async move { uds_task(dx_tx, uds).await });
 
-        loop {
-            if let Some(command) = dx_rx.recv().await {
+        // we make this a blocking receive to allow servers to block.
+        let _server_task = tokio::task::spawn_blocking(move || {
+            while let Some(command) = dx_rx.blocking_recv() {
                 let (response, tx) = match command {
                     DispatcherCommand::DispatchUds(packet, tx) => {
                         if let Some(handler) = handlers.iter_mut().find_map(|e| {
@@ -80,13 +81,12 @@ impl Server {
                         break;
                     }
                 };
-                if let Err(_e) = tx.send(DispatcherReply::ResponsePacket(response)).await {
+                if let Err(_e) = tx.blocking_send(DispatcherReply::ResponsePacket(response)) {
                     log::error!("Error sending response to UDS task");
                     break;
                 }
             }
-        }
-
+        });
         Ok(())
     }
 
@@ -94,7 +94,7 @@ impl Server {
     /// unrecoverable error.
     pub async fn serve<'a>(
         at: SocketAddr,
-        mut handler: Arc<Mutex<Box<impl ServerRequestHandler + Send + 'a>>>,
+        mut handler: Arc<Mutex<Box<dyn ServerRequestHandler + Send + 'a>>>,
         config: Configuration,
         service_id: u16,
         major_version: u8,
@@ -151,7 +151,7 @@ impl Server {
     }
 
     fn server_dispatch<'a>(
-        handler: &mut Arc<Mutex<Box<impl ServerRequestHandler + Send + 'a>>>,
+        handler: &mut Arc<Mutex<Box<dyn ServerRequestHandler + Send + 'a>>>,
         packet: SomeIpPacket,
     ) -> Option<SomeIpPacket> {
         match packet.header().message_type {
@@ -248,8 +248,8 @@ mod tests {
             });
 
             tokio::spawn(async move {
-                let test_service = Box::new(TestService {});
-                let service = Arc::new(Mutex::new(test_service));
+                let test_service: Box<dyn ServerRequestHandler + Send> = Box::new(TestService {});
+                let mut service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
                 let res = Server::serve(at, service, config, 45, 1, 0, tx).await;
                 println!("Server terminated");

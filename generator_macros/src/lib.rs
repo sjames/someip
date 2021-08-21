@@ -1,4 +1,4 @@
-use derive_syn_parse::Parse;
+ use derive_syn_parse::Parse;
 use proc_macro::{self, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, quote_spanned, ToTokens};

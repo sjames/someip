@@ -499,7 +499,7 @@ mod tests {
             });
 
             tokio::spawn(async move {
-                let test_service = Box::new(TestService {});
+                let test_service: Box<dyn ServerRequestHandler + Send> = Box::new(TestService {});
                 let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
                 let res = Server::serve(at, service, server_config, 0x45, 1, 0, tx).await;

@@ -152,7 +152,7 @@ pub struct Field1 {
             });
     
             tokio::spawn(async move {
-                let test_service = Box::new(EchoServerImpl::default());
+                let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
                 let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
                 let res = Server::serve(at, service, config, 45,1,0, tx).await;
@@ -246,11 +246,14 @@ pub struct Field1 {
             let (server,client) = UnixStream::pair().unwrap();
     
             tokio::spawn(async move {
-                let test_service = Box::new(EchoServerImpl::default());
+                //let service : dyn ServerRequestHandler  = EchoServerImpl::default();
+
+                let test_service : Box<dyn ServerRequestHandler + Send> = Box::new( EchoServerImpl::default());
+
                 let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
-                let mut handlers = [(45, service, 1, 0)];
-                let res = Server::serve_uds(server, &mut handlers).await;
+                let mut handlers = vec![(45, service, 1, 0)];
+                let res = Server::serve_uds(server, handlers).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
