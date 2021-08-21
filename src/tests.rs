@@ -58,11 +58,11 @@ pub struct Field1 {
         method_ids([4]echo_u64, [5]echo_struct)
     )]
     pub trait EchoServer {
-        fn echo_int(&self, value: i32) -> Result<i32, EchoError>;
-        fn echo_string(&self, value: String) -> Result<String, EchoError>;
-        fn no_reply(&self, value: Field1);
-        fn echo_u64(&self, value: u64) -> Result<u64, EchoError>;
-        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError>;
+        fn echo_int(&mut self, value: i32) -> Result<i32, EchoError>;
+        fn echo_string(&mut  self, value: String) -> Result<String, EchoError>;
+        fn no_reply(&mut self, value: Field1);
+        fn echo_u64(&mut self, value: u64) -> Result<u64, EchoError>;
+        fn echo_struct(&mut self, value : Field1) -> Result<Field1, EchoError>;
     }
 
     pub struct EchoServerImpl {
@@ -70,39 +70,40 @@ pub struct Field1 {
     }
 
     impl ServerRequestHandler for EchoServerImpl {
-        fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+        fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
             dispatcher::dispatch(self, message)
         }
     }
+
     impl EchoServer for EchoServerImpl {
-        fn echo_int(&self, value: i32) -> Result<i32, EchoError> {
+        fn echo_int(&mut self, value: i32) -> Result<i32, EchoError> {
             Ok(value)
         }
     
-        fn echo_string(&self, value: String) -> Result<String, EchoError> {
+        fn echo_string(&mut self, value: String) -> Result<String, EchoError> {
             std::thread::sleep(std::time::Duration::from_millis(1));
             Ok(value)
         }
     
-        fn set_value1(& self, _: Field1) -> Result<(), FieldError> { Ok(()) }
+        fn set_value1(&mut self, _: Field1) -> Result<(), FieldError> { Ok(()) }
     
         fn get_value1(&self) -> Result<&Field1, FieldError> { 
             Ok(&self.value1)
          }
-        fn set_value2(&self, _: std::string::String) -> Result<(), FieldError> { Ok(())}
+        fn set_value2(&mut self, _: std::string::String) -> Result<(), FieldError> { Ok(())}
         fn get_value2(&self) -> Result<&std::string::String, FieldError> { todo!() }
-        fn set_value3(&self, _: u32) -> Result<(), FieldError> { Ok(()) }
+        fn set_value3(&mut self, _: u32) -> Result<(), FieldError> { Ok(()) }
         fn get_value3(&self) -> Result<&u32, FieldError> { todo!() }
     
-        fn no_reply(&self, value: Field1) {
+        fn no_reply(&mut self, value: Field1) {
             //println!("No reply");
         }
 
-        fn echo_u64(&self, value: u64) -> Result<u64, EchoError> {
+        fn echo_u64(&mut self, value: u64) -> Result<u64, EchoError> {
             Ok(value)
         }
 
-        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError> {
+        fn echo_struct(&mut self, value : Field1) -> Result<Field1, EchoError> {
             Ok(value)
         }
     

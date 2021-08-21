@@ -32,7 +32,7 @@ impl Server {
 }
 
 pub trait ServerRequestHandler {
-    fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket>;
+    fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket>;
 }
 
 impl Server {
@@ -156,7 +156,7 @@ impl Server {
     ) -> Option<SomeIpPacket> {
         match packet.header().message_type {
             someip_parse::MessageType::Request => {
-                if let Ok(handler) = handler.lock() {
+                if let Ok(mut handler) = handler.lock() {
                     handler.handle(packet)
                 } else {
                     log::error!("Mutex poisoned?");
@@ -164,7 +164,7 @@ impl Server {
                 }
             }
             someip_parse::MessageType::RequestNoReturn => {
-                if let Ok(handler) = handler.lock() {
+                if let Ok(mut handler) = handler.lock() {
                     handler.handle(packet);
                     None
                 } else {
@@ -204,7 +204,7 @@ mod tests {
         struct TestService;
 
         impl ServerRequestHandler for TestService {
-            fn handle(&self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+            fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
                 println!("Packet received: {:?}", message);
                 assert_eq!(message.header().service_id(), 0x45);
                 assert_eq!(message.header().event_or_method_id(), 0x01);

@@ -355,7 +355,7 @@ fn create_set_field_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), FieldError>;
+        fn #set_fn_name(&mut self,#field_name : #field_type ) -> Result<(), FieldError>;
     };
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
@@ -608,11 +608,11 @@ fn create_dispatch_handler(
     //let method_reply_tokens = if method_has_return_type()
 
     // We expect that there is a struct (or enum with the name  <trait>Server)
-    let server_struct_name = format_ident!("{}ServerDispatcher", struct_name);
+    //let server_struct_name = format_ident!("{}ServerDispatcher", struct_name);
     let dispatch_tokens = quote! {
         pub mod dispatcher {
         use super::*;
-            pub fn dispatch(this:&impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            pub fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 match pkt.header().event_or_method_id() {
                     #(#method_ids => {
                         let params_raw = pkt.payload().as_ref();
