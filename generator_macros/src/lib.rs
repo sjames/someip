@@ -1,4 +1,4 @@
- use derive_syn_parse::Parse;
+use derive_syn_parse::Parse;
 use proc_macro::{self, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
@@ -793,8 +793,8 @@ impl Service {
 
 #[derive(Parse, Clone)]
 struct Id {
-    id: syn::LitInt,
-    arrow: Option<Token![=>]>,
+    id: Option<syn::LitInt>,
+    arrow: Option<Token![;]>,
     #[parse_if(arrow.is_some())]
     group_id: Option<syn::LitInt>,
 }

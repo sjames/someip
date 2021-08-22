@@ -15,6 +15,7 @@ use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use std::time;
+use async_trait::async_trait;
 
 #[derive(Serialize,Deserialize, Default,Clone, Debug, PartialEq)]
 pub struct SubField
@@ -53,10 +54,11 @@ pub struct Field1 {
 
     #[service(
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
-        events([1 =>10]value1:Event1, [2=>10]value2:String, [3=>10]value3: u32), 
+        events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32), 
         method_ids([1]echo_int, [2]echo_string, [3]no_reply),
         method_ids([4]echo_u64, [5]echo_struct)
     )]
+    #[async_trait]
     pub trait EchoServer {
         fn echo_int(&mut self, value: i32) -> Result<i32, EchoError>;
         fn echo_string(&mut  self, value: String) -> Result<String, EchoError>;
@@ -96,7 +98,7 @@ pub struct Field1 {
         fn get_value3(&self) -> Result<&u32, FieldError> { todo!() }
     
         fn no_reply(&mut self, value: Field1) {
-            //println!("No reply");
+
         }
 
         fn echo_u64(&mut self, value: u64) -> Result<u64, EchoError> {
