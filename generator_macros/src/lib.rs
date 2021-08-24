@@ -147,7 +147,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                     _client : client,
                 }
             }
-            pub async fn run(self, to: std::net::SocketAddr) -> Result<(), io::Error> {
+            pub async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error> {
                 let client = {
                     let client = self._client.clone();
                     client
@@ -155,7 +155,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 client.run(to).await
             }
 
-            pub async fn run_uds(self, to: std::os::unix::net::UnixStream ) -> Result<(), io::Error> {
+            pub async fn run_uds(self, to: std::os::unix::net::UnixStream ) -> Result<(), std::io::Error> {
                 let client = {
                     let client = self._client.clone();
                     client
@@ -426,7 +426,7 @@ fn create_send_event_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #send_event_fn_name(&self,#field_name : #field_type ) -> Result<(), io::Error> {
+        fn #send_event_fn_name(&self,#field_name : #field_type ) -> Result<(), std::io::Error> {
             todo!("Implement event sender");
             Ok(())
         }
