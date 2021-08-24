@@ -19,6 +19,8 @@ pub mod tasks;
 #[cfg(test)]
 mod tests;
 
+pub use log;
+
 pub use call_properties::CallProperties;
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
