@@ -55,8 +55,8 @@ pub struct Field1 {
     #[service(
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32), 
-        method_ids([1]echo_int, [2]echo_string, [3]no_reply),
-        method_ids([4]echo_u64, [5]echo_struct)
+        method_ids([2]echo_string, [3]no_reply),
+        method_ids([5]echo_struct)
     )]
     #[async_trait]
     pub trait EchoServer {
@@ -291,7 +291,6 @@ pub struct Field1 {
                     }
                 }
     
-
                 let res = proxy.no_reply(Field1::default(),&prop).await;
                 assert_eq!(res, Ok(()));
 

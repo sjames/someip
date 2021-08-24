@@ -10,15 +10,12 @@ use syn::{Expr, Signature, *};
 
 #[proc_macro_attribute]
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
-    //println!("attr: \"{}\"", attr.to_string());
-    //println!("item: \"{}\"", item.to_string());
-
     let service = parse_macro_input!(attr as Service);
     let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
 
+    let service = create_method_ids(service, &service_trait);
+
     for entry in &service.entries {
-        //println!("Entry");
-        //println!("  ident:{}", entry.ident.to_string());
         let entry_name = entry.ident.to_string();
         if (entry_name.as_str() != "fields")
             && (entry_name.as_str() != "events")
@@ -36,7 +33,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let item_structs = create_internal_marshalling_structs(&service_trait);
 
-    let new_methods = get_methods(&service);
+    let new_methods = get_injected_methods(&service);
     for m in new_methods {
         service_trait.items.push(syn::TraitItem::Method(m));
     }
@@ -63,6 +60,54 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     //println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
+}
+
+// Find the next available method ID.  Skip over any used IDs until
+// we get a free ID.
+fn allocate_next_valid_method_id(
+    mut service: Service,
+    start: u32,
+    method_name: &Ident,
+) -> (u32, Service) {
+    if get_method_ids(&service)
+        .iter()
+        .find(|(id, name)| *id == start)
+        .is_some()
+    {
+        // id exists, try next one
+        return allocate_next_valid_method_id(service, start + 1, method_name);
+    } else {
+        // inject a new ID.
+        //let field_ts = quote! {method_ids([#start]#method_name)};
+        let entry: ServiceEntry =
+            syn::parse_str(&format!("method_ids([{}]{})", start, method_name)).unwrap();
+
+        println!("Allocated method id {} to {}", start, method_name);
+
+        service.entries.push(entry);
+        (start + 1, service)
+    }
+}
+
+/// create method Ids for methods without ids in the Service.
+fn create_method_ids(service: Service, item_trait: &ItemTrait) -> Service {
+    let mut current_id = 1;
+    let mut current_service = service;
+    for item in &item_trait.items {
+        if let TraitItem::Method(m) = item {
+            if get_method_ids(&current_service)
+                .iter()
+                .find(|(id, name)| name == &m.sig.ident)
+                .is_none()
+            {
+                let (next_id, service) =
+                    allocate_next_valid_method_id(current_service, current_id, &m.sig.ident);
+                current_id = next_id;
+                current_service = service;
+            }
+        }
+    }
+    current_service
 }
 
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
@@ -202,7 +247,6 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
         ReturnType::Type(_a, t) => {
             if let syn::Type::Path(p) = *t.clone() {
                 if let Some((success_type, failure_type)) = get_result_types(&p) {
-                    println!("Found return type : {:?} {:?}", success_type, failure_type);
                     Some((success_type, failure_type))
                 } else {
                     return quote_spanned! {
@@ -376,19 +420,17 @@ fn create_send_event_method(field: &Field) -> syn::TraitItemMethod {
             Ok(())
         }
     };
-    //println!("Send Event Method:{}", &method_tokens.to_string());
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
     method
 }
 
-fn get_methods(service: &Service) -> Vec<syn::TraitItemMethod> {
+fn get_injected_methods(service: &Service) -> Vec<syn::TraitItemMethod> {
     let mut methods = Vec::new();
     for entry in &service.entries {
         match entry.ident.to_string().as_str() {
             "fields" => {
                 for field in &entry.fields {
-                    //println!("Field : {:?}:{}", field.id.id, field.name.to_string());
                     let set_method = create_set_field_method(field);
                     methods.push(set_method);
 
@@ -398,14 +440,14 @@ fn get_methods(service: &Service) -> Vec<syn::TraitItemMethod> {
             }
             "events" => {
                 for field in &entry.fields {
-                    //println!("Field : {:?}:{}", field.id.id, field.name.to_string());
                     let send_event_method = create_send_event_method(field);
                     methods.push(send_event_method);
                 }
             }
 
             _ => {
-                println!("{} unsupported", entry.ident.to_string());
+                // Nothing needs to be done for methods
+                //println!("{} unsupported", entry.ident.to_string());
             }
         }
     }
@@ -550,48 +592,12 @@ fn dispatch_method_call(id: u32, service: &Service, item_trait: &syn::ItemTrait)
     todo!()
 }
 
-/// If Ids are not specified in the service structure, we generate them.
-fn generate_method_ids(service: &Service, item_trait: &syn::ItemTrait) -> Vec<(u32, Ident)> {
-    // we need to skip the field get and set methods that we generated.
-    let field_ids = get_field_ids(service);
-
-    let auto_ids: Vec<(u32, Ident)> = item_trait
-        .items
-        .iter()
-        .filter_map(|item| {
-            if let TraitItem::Method(m) = item {
-                if field_ids
-                    .iter()
-                    .find(|(i, f)| {
-                        println!("f:{}, m.sig.ident:{}", f, m.sig.ident);
-                        f == &m.sig.ident
-                    })
-                    .is_none()
-                {
-                    Some(m)
-                } else {
-                    println!("Skipped :{}", m.sig.ident);
-                    None
-                }
-            } else {
-                None
-            }
-        })
-        .enumerate()
-        .map(|(i, method)| (i as u32, method.sig.ident.clone()))
-        .collect();
-
-    println!("!!!!!!!!!!!Generated methid ids: {:?}", auto_ids);
-
-    get_method_ids(service)
-}
-
 fn create_dispatch_handler(
     struct_name: &Ident,
     service: &Service,
     item_trait: &syn::ItemTrait,
 ) -> syn::Item {
-    let method_id_name = generate_method_ids(service, item_trait);
+    let method_id_name = get_method_ids(service);
     let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
         .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i)).unwrap())
@@ -704,7 +710,7 @@ fn create_dispatch_handler(
         }// mod dispatcher
     };
 
-    println!("dispatch function\n:{}", &dispatch_tokens.to_string());
+    //println!("dispatch function\n:{}", &dispatch_tokens.to_string());
 
     let method: syn::Item = syn::parse2(dispatch_tokens).unwrap();
     method
@@ -753,7 +759,7 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
             if let syn::ReturnType::Type(_, ty) = &m.sig.output {
                 match ty.as_ref() {
                     syn::Type::Path(p) => {
-                        println!("Found type path");
+                        //println!("Found type path");
                     }
                     _ => {}
                 }
