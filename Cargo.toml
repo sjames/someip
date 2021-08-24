@@ -27,5 +27,5 @@ tokio-util = {version = "0.6.5", features = ["codec", "net", "time"]}
 async-std = "1.9.0"
 async-trait = "0.1.51"
 bincode = "1.3"
-generator_macros = {path = "generator_macros"}
+someip_derive = {path = "generator_macros"}
 simplelog = "0.10.0"

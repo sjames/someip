@@ -1,6 +1,6 @@
 [package]
 edition = "2018"
-name = "generator_macros"
+name = "someip_derive"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

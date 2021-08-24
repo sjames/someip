@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::{net::UnixStream, runtime::Runtime};
 
-use generator_macros::*;
+use someip_derive::*;
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
