@@ -19,6 +19,8 @@ pub mod tasks;
 #[cfg(test)]
 mod tests;
 
+// We reexport log and bincode for the generated code
+pub use bincode;
 pub use log;
 
 pub use call_properties::CallProperties;
