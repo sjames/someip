@@ -273,8 +273,8 @@ pub struct Field1 {
                 let handler = Handler::create_handler();
 
                 println!("Going to run server");
-                let mut handlers = vec![(45u16, handler, 1, 0)];
-                let res = Server::serve_uds(server, handlers).await;
+                let handlers = [(45u16, handler, 1, 0)];
+                let res = Server::serve_uds(server, &handlers).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);

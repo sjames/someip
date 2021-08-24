@@ -1,3 +1,8 @@
+//! A SOME/IP Implementation for Rust
+//!
+//! Caveats
+//! * This implementation uses bincode serialization
+//! * Service Discover is not yet implemented
 pub mod call_properties;
 pub mod client;
 pub mod config;
@@ -20,5 +25,6 @@ pub use error::{FieldError, MethodError};
 pub use field::Field;
 pub use server::{Server, ServerRequestHandler};
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
-pub use tasks::{ConnectionInfo, ConnectionMessage, DispatcherCommand, DispatcherReply};
+pub use tasks::ConnectionMessage;
+use tasks::{ConnectionInfo, DispatcherCommand, DispatcherReply};
 pub use {client::Client, client::ReplyData};

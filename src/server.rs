@@ -47,12 +47,12 @@ impl Server {
     /// This call does not return as long as the connection is active.
     pub async fn serve_uds(
         uds: UnixStream,
-        mut handlers: Vec<(
+        handlers: &[(
             u16,                           // service_id
             Arc<dyn ServerRequestHandler>, // handler
             u8,                            // major number
             u32,                           // minor number
-        )>,
+        )],
     ) -> Result<(), io::Error> {
         let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
         let _uds_task = tokio::spawn(async move { uds_task(dx_tx, uds).await });
@@ -61,7 +61,7 @@ impl Server {
         while let Some(command) = dx_rx.recv().await {
             let (response, tx) = match command {
                 DispatcherCommand::DispatchUds(packet, tx) => {
-                    if let Some(handler) = handlers.iter_mut().find_map(|e| {
+                    if let Some(handler) = handlers.iter().find_map(|e| {
                         if packet.header().service_id() == e.0 {
                             Some(e)
                         } else {
