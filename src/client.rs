@@ -417,7 +417,9 @@ async fn tcp_client_dispatcher(
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use bytes::Bytes;
+    use futures::future::BoxFuture;
     use someip_parse::SomeIpHeader;
 
     use super::*;
@@ -454,8 +456,9 @@ mod tests {
 
         struct TestService;
 
+        #[async_trait]
         impl ServerRequestHandler for TestService {
-            fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+            /*async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
                 println!("Packet received: {:?}", message);
                 assert_eq!(message.header().service_id(), 0x45);
                 assert_eq!(message.header().event_or_method_id(), 0x01);
@@ -464,6 +467,22 @@ mod tests {
                     someip_parse::ReturnCode::Ok,
                     Bytes::new(),
                 ))
+            }*/
+
+            fn get_handler(
+                &self,
+                message: SomeIpPacket,
+            ) -> BoxFuture<'static, Option<SomeIpPacket>> {
+                Box::pin(async move {
+                    println!("Packet received: {:?}", message);
+                    assert_eq!(message.header().service_id(), 0x45);
+                    assert_eq!(message.header().event_or_method_id(), 0x01);
+                    Some(SomeIpPacket::reply_packet_from(
+                        message,
+                        someip_parse::ReturnCode::Ok,
+                        Bytes::new(),
+                    ))
+                })
             }
         }
 
@@ -498,11 +517,30 @@ mod tests {
                 }
             });
 
+            struct Handler {
+                inner: Arc<Mutex<TestService>>,
+            }
+
+            let handler: Arc<dyn ServerRequestHandler> = Arc::new(Handler {
+                inner: Arc::new(Mutex::new(TestService {})),
+            });
+
+            //unsafe impl Sync for Handler {};
+
+            impl ServerRequestHandler for Handler {
+                fn get_handler(
+                    &self,
+                    message: SomeIpPacket,
+                ) -> BoxFuture<'static, Option<SomeIpPacket>> {
+                    let handle = self.inner.clone();
+                    todo!()
+                    //Box::pin(async move { dispatch(handle, message).await })
+                }
+            }
+
             tokio::spawn(async move {
-                let test_service: Box<dyn ServerRequestHandler + Send> = Box::new(TestService {});
-                let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
-                let res = Server::serve(at, service, server_config, 0x45, 1, 0, tx).await;
+                let res = Server::serve(at, handler, server_config, 0x45, 1, 0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);

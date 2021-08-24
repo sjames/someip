@@ -1,15 +1,12 @@
-use bincode::config;
 use bitvec::prelude::*;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, Bytes};
-use core::num;
 use someip_parse::SomeIpHeader;
 use std::{
     convert::TryFrom,
     fmt::Display,
     io::ErrorKind,
     net::{Ipv4Addr, Ipv6Addr},
-    option,
 };
 
 use crate::SomeIpPacket;

@@ -1,6 +1,5 @@
 pub use crate::someip_codec::SomeIPCodec;
 
-use futures::io::ReadHalf;
 use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
@@ -178,7 +177,7 @@ mod tests {
                 }
             });
 
-            task.await;
+            task.await.unwrap();
         });
     }
 

@@ -1,10 +1,11 @@
 // A SOME/IP server (provider)
 
-use std::{io, net::SocketAddr, sync::Arc, sync::Mutex};
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use std::{io, net::SocketAddr, sync::Arc};
 use tokio::net::UnixStream;
-use tokio::sync::mpsc::{Receiver, Sender};
-
 use tokio::sync::mpsc::channel;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::config::Configuration;
 use crate::someip_codec::SomeIpPacket;
@@ -31,10 +32,13 @@ impl Server {
     }
 }
 
-pub trait ServerRequestHandler {
-    fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket>;
+#[async_trait]
+pub trait ServerRequestHandler: Send + Sync {
+    //async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket>;
+    fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>>;
 }
 
+#[allow(clippy::type_complexity)]
 impl Server {
     /// Serve services on a UDS connection.
     ///
@@ -44,49 +48,47 @@ impl Server {
     pub async fn serve_uds(
         uds: UnixStream,
         mut handlers: Vec<(
-            u16,                                              // service_id
-            Arc<Mutex<Box<dyn ServerRequestHandler + Send>>>, // handler
-            u8,                                               // major number
-            u32,                                              // minor number
+            u16,                           // service_id
+            Arc<dyn ServerRequestHandler>, // handler
+            u8,                            // major number
+            u32,                           // minor number
         )>,
     ) -> Result<(), io::Error> {
         let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
-        let uds_task = tokio::spawn(async move { uds_task(dx_tx, uds).await });
+        let _uds_task = tokio::spawn(async move { uds_task(dx_tx, uds).await });
 
-        // we make this a blocking receive to allow servers to block.
-        let _server_task = tokio::task::spawn_blocking(move || {
-            while let Some(command) = dx_rx.blocking_recv() {
-                let (response, tx) = match command {
-                    DispatcherCommand::DispatchUds(packet, tx) => {
-                        if let Some(handler) = handlers.iter_mut().find_map(|e| {
-                            if packet.header().service_id() == e.0 {
-                                Some(e)
-                            } else {
-                                None
-                            }
-                        }) {
-                            (Self::server_dispatch(&mut handler.1, packet), tx)
+        // Servers are also async and should not block
+        while let Some(command) = dx_rx.recv().await {
+            let (response, tx) = match command {
+                DispatcherCommand::DispatchUds(packet, tx) => {
+                    if let Some(handler) = handlers.iter_mut().find_map(|e| {
+                        if packet.header().service_id() == e.0 {
+                            Some(e)
                         } else {
-                            panic!("{}", "unhandled service id");
+                            None
                         }
+                    }) {
+                        (Self::server_dispatch(handler.1.clone(), packet).await, tx)
+                    } else {
+                        panic!("{}", "unhandled service id");
                     }
-                    DispatcherCommand::DispatchUdp(_, _) => {
-                        panic!("{}", "UDP is not expected here");
-                    }
-                    DispatcherCommand::DispatchTcp(_, _) => {
-                        panic!("{}", "TCP is not expected here");
-                    }
-                    DispatcherCommand::Terminate => {
-                        log::debug!("Dispatcher terminating");
-                        break;
-                    }
-                };
-                if let Err(_e) = tx.blocking_send(DispatcherReply::ResponsePacket(response)) {
-                    log::error!("Error sending response to UDS task");
+                }
+                DispatcherCommand::DispatchUdp(_, _) => {
+                    panic!("{}", "UDP is not expected here");
+                }
+                DispatcherCommand::DispatchTcp(_, _) => {
+                    panic!("{}", "TCP is not expected here");
+                }
+                DispatcherCommand::Terminate => {
+                    log::debug!("Dispatcher terminating");
                     break;
                 }
+            };
+            if let Err(_e) = tx.send(DispatcherReply::ResponsePacket(response)).await {
+                log::error!("Error sending response to UDS task");
+                break;
             }
-        });
+        }
         Ok(())
     }
 
@@ -94,7 +96,7 @@ impl Server {
     /// unrecoverable error.
     pub async fn serve<'a>(
         at: SocketAddr,
-        mut handler: Arc<Mutex<Box<dyn ServerRequestHandler + Send + 'a>>>,
+        handler: Arc<dyn ServerRequestHandler>,
         config: Configuration,
         service_id: u16,
         major_version: u8,
@@ -121,10 +123,10 @@ impl Server {
             if let Some(command) = dx_rx.recv().await {
                 let (response, tx) = match command {
                     DispatcherCommand::DispatchUdp(packet, tx) => {
-                        (Self::server_dispatch(&mut handler, packet), tx)
+                        (Self::server_dispatch(handler.clone(), packet).await, tx)
                     }
                     DispatcherCommand::DispatchTcp(packet, tx) => {
-                        (Self::server_dispatch(&mut handler, packet), tx)
+                        (Self::server_dispatch(handler.clone(), packet).await, tx)
                     }
                     DispatcherCommand::Terminate => {
                         log::debug!("Dispatcher terminating");
@@ -150,27 +152,29 @@ impl Server {
         Ok(())
     }
 
-    fn server_dispatch<'a>(
-        handler: &mut Arc<Mutex<Box<dyn ServerRequestHandler + Send + 'a>>>,
+    async fn server_dispatch<'a>(
+        handler: Arc<dyn ServerRequestHandler>,
         packet: SomeIpPacket,
     ) -> Option<SomeIpPacket> {
         match packet.header().message_type {
             someip_parse::MessageType::Request => {
-                if let Ok(mut handler) = handler.lock() {
-                    handler.handle(packet)
-                } else {
-                    log::error!("Mutex poisoned?");
-                    panic!("getting lock for handler");
-                }
+                //let handler = if let Ok(handler) = handler.lock() {
+                //    handler.get_handler(packet)
+                //} else {
+                //    log::error!("Mutex poisoned?");
+                //    panic!("getting lock for handler");
+                //};
+                handler.get_handler(packet).await
             }
             someip_parse::MessageType::RequestNoReturn => {
-                if let Ok(mut handler) = handler.lock() {
-                    handler.handle(packet);
-                    None
-                } else {
-                    log::error!("Mutex poisoned?");
-                    panic!("getting lock for handler");
-                }
+                //let handler = if let Ok(handler) = handler.lock() {
+                //    handler.get_handler(packet)
+                //} else {
+                //    log::error!("Mutex poisoned?");
+                //    panic!("getting lock for handler");
+                //};
+                handler.get_handler(packet).await;
+                None
             }
             someip_parse::MessageType::Notification => {
                 log::error!("Server received Notification packet, dropped");
@@ -196,19 +200,31 @@ mod tests {
     use bytes::{Bytes, BytesMut};
     use futures::SinkExt;
     use someip_parse::{MessageType, SomeIpHeader};
-    use std::{fmt::Write, iter::FromIterator, net::SocketAddr, str, time::Duration};
+    use std::{net::SocketAddr, time::Duration};
     use tokio::runtime::Runtime;
 
     #[test]
     fn test_basic() {
         struct TestService;
 
+        #[async_trait]
         impl ServerRequestHandler for TestService {
-            fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+            /*async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
                 println!("Packet received: {:?}", message);
                 assert_eq!(message.header().service_id(), 0x45);
                 assert_eq!(message.header().event_or_method_id(), 0x01);
                 Some(message)
+            }*/
+            fn get_handler(
+                &self,
+                message: SomeIpPacket,
+            ) -> BoxFuture<'static, Option<SomeIpPacket>> {
+                Box::pin(async move {
+                    println!("Packet received: {:?}", message);
+                    assert_eq!(message.header().service_id(), 0x45);
+                    assert_eq!(message.header().event_or_method_id(), 0x01);
+                    Some(message)
+                })
             }
         }
 
@@ -248,8 +264,8 @@ mod tests {
             });
 
             tokio::spawn(async move {
-                let test_service: Box<dyn ServerRequestHandler + Send> = Box::new(TestService {});
-                let mut service = Arc::new(Mutex::new(test_service));
+                //let test_service: Box<dyn ServerRequestHandler> = Box::new(TestService {});
+                let service = Arc::new(TestService {});
                 println!("Going to run server");
                 let res = Server::serve(at, service, config, 45, 1, 0, tx).await;
                 println!("Server terminated");
@@ -270,7 +286,7 @@ mod tests {
             let payload = BytesMut::new().freeze();
             let packet = SomeIpPacket::new(header, payload);
 
-            tx_connection.send(packet).await;
+            tx_connection.send(packet).await.unwrap();
 
             println!("Sending terminate");
             //let res = &mut handle.terminate().await;

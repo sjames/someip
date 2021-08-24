@@ -13,8 +13,8 @@ impl Default for CallProperties {
 impl CallProperties {
     pub fn with_timeout(timeout: std::time::Duration) -> Self {
         Self {
-            timeout: timeout,
-            ..Default::default()
+            timeout,
+            //..Default::default()
         }
     }
 }

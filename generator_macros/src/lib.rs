@@ -238,6 +238,17 @@ fn method_is_async(method: &syn::TraitItemMethod) -> bool {
     method.sig.asyncness.is_some()
 }
 
+fn trait_is_async(trait_item: &ItemTrait) -> bool {
+    for item in &trait_item.items {
+        if let TraitItem::Method(m) = item {
+            if method_is_async(&m) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /// Generate the code for a single RPC method in the trait
 fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let method = find_method_by_ident(ident, item_trait).expect("Expected to find method");
@@ -403,7 +414,7 @@ fn create_set_field_method(field: &Field) -> syn::TraitItemMethod {
     let field_type = &field.ty;
     let field_name = &field.name;
     let method_tokens = quote! {
-        fn #set_fn_name(&mut self,#field_name : #field_type ) -> Result<(), FieldError>;
+        fn #set_fn_name(&self,#field_name : #field_type ) -> Result<(), FieldError>;
     };
     //let parse_buffer: ParseBuffer = method_tokens.into();
     let method: syn::TraitItemMethod = syn::parse2(method_tokens).unwrap(); //  Signature::parse(&method_tokens.into());
@@ -487,6 +498,8 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
     let input_struct_name = input_struct_name_from_method(method);
     let method_name = &method.sig.ident;
 
+    let is_async = method_is_async(&method);
+
     let params: Vec<syn::Pat> = method
         .sig
         .inputs
@@ -497,6 +510,12 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
         })
         .collect();
 
+    let await_if_needed = if is_async {
+        quote! {.await}
+    } else {
+        quote! {}
+    };
+
     let call_method = quote! {
         let res_in_param : Result<#input_struct_name,_> = deserialize(params_raw);
         if res_in_param.is_err() {
@@ -504,7 +523,7 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
             return Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, Bytes::new()));
         }
         let in_param = res_in_param.unwrap();
-        let res = this.#method_name(#(in_param.#params),*);
+        let res = this.#method_name(#(in_param.#params),*)#await_if_needed;
     };
 
     call_method
@@ -609,6 +628,12 @@ fn create_dispatch_handler(
         deserialize_call.push(deser_tokens);
     }
 
+    let async_fn_if_needed = if trait_is_async(item_trait) {
+        quote! {async}
+    } else {
+        quote! {}
+    };
+
     let field_id_names = get_field_ids(service);
     let field_ids: Vec<TokenStream2> = field_id_names
         .iter()
@@ -651,14 +676,18 @@ fn create_dispatch_handler(
         method_returns.push(method_reply_tokens);
     }
 
+    let module_name = format_ident!("{}_dispatcher", struct_name);
     //let method_reply_tokens = if method_has_return_type()
 
     // We expect that there is a struct (or enum with the name  <trait>Server)
     //let server_struct_name = format_ident!("{}ServerDispatcher", struct_name);
     let dispatch_tokens = quote! {
-        pub mod dispatcher {
+        #[allow(non_snake_case)]
+        pub mod #module_name {
         use super::*;
-            pub fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            pub async fn dispatch(this: Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            //pub async fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+                //let mut this = this.lock().unwrap();
                 match pkt.header().event_or_method_id() {
                     #(#method_ids => {
                         let params_raw = pkt.payload().as_ref();
@@ -723,10 +752,16 @@ fn input_struct_name_from_method(m: &syn::TraitItemMethod) -> proc_macro2::Ident
 // Add a super trait to this trait item.
 fn add_super_trait(item_trait: &mut syn::ItemTrait) {
     let tokens = quote! {
-        ServerRequestHandler
+        Send
     };
     let super_trait: syn::TypeParamBound = syn::parse2(tokens).unwrap();
 
+    item_trait.supertraits.push(super_trait);
+
+    let tokens = quote! {
+        Sync
+    };
+    let super_trait: syn::TypeParamBound = syn::parse2(tokens).unwrap();
     item_trait.supertraits.push(super_trait);
 }
 
@@ -895,4 +930,27 @@ struct ServiceEntry {
     #[inside(arg_paren)]
     #[call(Punctuated::<Field, Token![,]>::parse_terminated)]
     fields: Punctuated<Field, Token![,]>,
+}
+
+/// A marker to apply on Service implementations
+#[proc_macro_attribute]
+pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
+    let mut service_trait = parse_macro_input!(item as syn::ItemStruct);
+
+    let impl_name = &service_trait.ident;
+
+    let service_impl = quote! {
+    //        impl ServerRequestHandler for #impl_name {
+    //            async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
+    //                None //dispatcher::dispatch(self, message).await
+    //            }
+     //       }
+        };
+
+    let mut token_stream = TokenStream2::new();
+    service_trait.to_tokens(&mut token_stream);
+
+    token_stream.extend(service_impl);
+
+    token_stream.into()
 }

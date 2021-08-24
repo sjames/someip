@@ -17,6 +17,8 @@ use thiserror::Error;
 use std::time;
 use async_trait::async_trait;
 
+use futures::future::BoxFuture;
+
 #[derive(Serialize,Deserialize, Default,Clone, Debug, PartialEq)]
 pub struct SubField
 {
@@ -60,52 +62,72 @@ pub struct Field1 {
     )]
     #[async_trait]
     pub trait EchoServer {
-        fn echo_int(&mut self, value: i32) -> Result<i32, EchoError>;
-        fn echo_string(&mut  self, value: String) -> Result<String, EchoError>;
-        fn no_reply(&mut self, value: Field1);
-        fn echo_u64(&mut self, value: u64) -> Result<u64, EchoError>;
-        fn echo_struct(&mut self, value : Field1) -> Result<Field1, EchoError>;
+        fn echo_int(&self, value: i32) -> Result<i32, EchoError>;
+        async fn echo_string(&self, value: String) -> Result<String, EchoError>;
+        fn no_reply(&self, value: Field1);
+        fn echo_u64(&self, value: u64) -> Result<u64, EchoError>;
+        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError>;
     }
 
+    #[service_impl]
     pub struct EchoServerImpl {
         value1 : Field1,
     }
 
-    impl ServerRequestHandler for EchoServerImpl {
-        fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket> {
-            dispatcher::dispatch(self, message)
+    pub struct EchoServerImplHandle(Arc<Mutex<EchoServerImpl>>);
+    unsafe impl Send for EchoServerImplHandle{}
+
+    pub struct Handler(Arc<dyn EchoServer>);
+
+    impl Handler {
+        pub fn create_handler() -> Arc<dyn ServerRequestHandler> {
+            Arc::new(Handler(Arc::new(EchoServerImpl{ value1: Field1::default() })))
+
         }
     }
 
+     impl ServerRequestHandler for Handler {
+
+        fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>> {
+            let handle = self.0.clone();
+            Box::pin(async move {
+                EchoServer_dispatcher::dispatch(handle,message).await
+            })
+        }
+            }
+
+
+    #[async_trait]
     impl EchoServer for EchoServerImpl {
-        fn echo_int(&mut self, value: i32) -> Result<i32, EchoError> {
+        fn echo_int(&self, value: i32) -> Result<i32, EchoError> {
             Ok(value)
         }
     
-        fn echo_string(&mut self, value: String) -> Result<String, EchoError> {
-            std::thread::sleep(std::time::Duration::from_millis(1));
+        async fn echo_string(&self, value: String) -> Result<String, EchoError> {
+            //std::thread::sleep(std::time::Duration::from_millis(1));
+            async_std::task::sleep(std::time::Duration::from_millis(1)).await;
             Ok(value)
         }
     
-        fn set_value1(&mut self, _: Field1) -> Result<(), FieldError> { Ok(()) }
+        fn set_value1(&self, _: Field1) -> Result<(), FieldError> { Ok(()) }
     
         fn get_value1(&self) -> Result<&Field1, FieldError> { 
             Ok(&self.value1)
          }
-        fn set_value2(&mut self, _: std::string::String) -> Result<(), FieldError> { Ok(())}
+        fn set_value2(&self, _: std::string::String) -> Result<(), FieldError> { Ok(())}
         fn get_value2(&self) -> Result<&std::string::String, FieldError> { todo!() }
-        fn set_value3(&mut self, _: u32) -> Result<(), FieldError> { Ok(()) }
+        fn set_value3(&self, _: u32) -> Result<(), FieldError> { Ok(()) }
         fn get_value3(&self) -> Result<&u32, FieldError> { todo!() }
     
-        fn no_reply(&mut self, value: Field1) {
+        fn no_reply(&self, value: Field1) {
 
         }
 
-        fn echo_u64(&mut self, value: u64) -> Result<u64, EchoError> {
+        fn echo_u64(&self, value: u64) -> Result<u64, EchoError> {
             Ok(value)
         }
 
-        fn echo_struct(&mut self, value : Field1) -> Result<Field1, EchoError> {
+        fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError> {
             Ok(value)
         }
     
@@ -132,7 +154,6 @@ pub struct Field1 {
     
         let at = "127.0.0.1:8092".parse::<SocketAddr>().unwrap();
         println!("Test");
-    
       
         let _result = rt.block_on(async {
             let (tx, mut rx) = Server::create_notify_channel(1);
@@ -154,10 +175,10 @@ pub struct Field1 {
             });
     
             tokio::spawn(async move {
-                let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
-                let service = Arc::new(Mutex::new(test_service));
+                //let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
+                let handler = Handler::create_handler();
                 println!("Going to run server");
-                let res = Server::serve(at, service, config, 45,1,0, tx).await;
+                let res = Server::serve(at, handler, config, 45,1,0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
@@ -195,7 +216,6 @@ pub struct Field1 {
                     }
                 }
     
-
                 let res = proxy.no_reply(Field1::default(),&prop).await;
                 assert_eq!(res, Ok(()));
 
@@ -237,6 +257,7 @@ pub struct Field1 {
         });
     }
 
+
     #[test]
     pub fn echo_uds_tests() {
     
@@ -248,13 +269,11 @@ pub struct Field1 {
             let (server,client) = UnixStream::pair().unwrap();
     
             tokio::spawn(async move {
-                //let service : dyn ServerRequestHandler  = EchoServerImpl::default();
 
-                let test_service : Box<dyn ServerRequestHandler + Send> = Box::new( EchoServerImpl::default());
+                let handler = Handler::create_handler();
 
-                let service = Arc::new(Mutex::new(test_service));
                 println!("Going to run server");
-                let mut handlers = vec![(45, service, 1, 0)];
+                let mut handlers = vec![(45u16, handler, 1, 0)];
                 let res = Server::serve_uds(server, handlers).await;
                 println!("Server terminated");
                 if let Err(e) = res {
@@ -325,11 +344,10 @@ pub struct Field1 {
                 assert_eq!(returned, res.unwrap());
             }
 
-    
             });
             let _ = task.await;
 
         });
     }
-    
+
 

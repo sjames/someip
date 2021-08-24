@@ -7,10 +7,7 @@ use std::{
     net::{IpAddr, SocketAddr},
 };
 use tokio::sync::mpsc::Sender;
-use tokio::{
-    net::{UnixListener, UnixStream},
-    sync::mpsc::channel,
-};
+use tokio::{net::UnixStream, sync::mpsc::channel};
 
 pub enum DispatcherCommand {
     Terminate,
@@ -84,7 +81,7 @@ pub async fn tcp_server_task(
 ) -> Result<(), io::Error> {
     loop {
         log::debug!("Waiting for TCP connection from client");
-        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), &at).await {
+        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), at).await {
             Ok((tcp_stream, addr)) => {
                 // received a connection.
 
@@ -229,7 +226,7 @@ pub async fn udp_task(
     service_id: u16,
     notify_ucp_tx: Sender<ConnectionInfo>,
 ) -> Result<(), io::Error> {
-    let udp_addr = at.clone();
+    let udp_addr = at;
 
     if let Ok(udp_stream) = SomeIPCodec::create_udp_stream(&udp_addr, None, None).await {
         let (mut tx, mut rx) = udp_stream.split();
