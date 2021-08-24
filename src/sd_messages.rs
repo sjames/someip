@@ -1,7 +1,7 @@
 use bitvec::prelude::*;
-use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, Bytes};
 use someip_parse::SomeIpHeader;
+use std::convert::TryInto;
 use std::{
     convert::TryFrom,
     fmt::Display,
@@ -140,8 +140,8 @@ impl TryFrom<SomeIpPacket> for SDMessage {
         //println!("Pkt Header payload len: {}", pkt.header().length);
         //println!("Payload length:{}", payload.len());
 
-        let flags_reserved = BigEndian::read_u32(&payload[0..]);
-        let num_entries = BigEndian::read_u32(&payload[4..]) as usize;
+        let flags_reserved = u32::from_be_bytes(payload[0..4].try_into().unwrap());
+        let num_entries = u32::from_be_bytes(payload[4..4 + 4].try_into().unwrap()) as usize;
         let option_length_index = 8 + num_entries * 16;
         if payload.len() < option_length_index {
             log::error!("Invalid packet. Not enough bytes for service entries");
@@ -166,7 +166,8 @@ impl TryFrom<SomeIpPacket> for SDMessage {
         }
 
         let options_slice = &payload[option_length_index..];
-        let options_length_in_bytes = BigEndian::read_u32(&options_slice[0..]) as usize;
+        let options_length_in_bytes =
+            u32::from_be_bytes(options_slice[0..4].try_into().unwrap()) as usize;
         let options_buffer_slice = &options_slice[4..];
 
         if options_length_in_bytes != options_buffer_slice.len() {
@@ -185,7 +186,11 @@ impl TryFrom<SomeIpPacket> for SDMessage {
             if option_start_index + 2 > options_buffer_slice.len() {
                 break;
             }
-            let len = BigEndian::read_u16(&options_buffer_slice[option_start_index..]) as usize;
+            let len = u16::from_be_bytes(
+                options_buffer_slice[option_start_index..option_start_index + 2]
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
             let option_end_index = option_start_index + len + 3;
             let option_slice = &options_buffer_slice[option_start_index..option_end_index];
             if let Ok(option) = SDOption::try_from(option_slice) {
@@ -247,7 +252,7 @@ impl TryFrom<&[u8]> for SDOption {
     type Error = ();
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let length: usize = BigEndian::read_u16(&data[0..2]) as usize;
+        let length: usize = u16::from_be_bytes(data[0..2].try_into().unwrap()) as usize;
         if data.len() != length + 3 {
             log::error!("Invalid length in packet");
             return Err(());
@@ -266,8 +271,8 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 5 {
                     Err(())
                 } else {
-                    let priority = BigEndian::read_u16(&data[4..6]);
-                    let weight = BigEndian::read_u16(&data[6..8]);
+                    let priority = u16::from_be_bytes(data[4..6].try_into().unwrap());
+                    let weight = u16::from_be_bytes(data[6..8].try_into().unwrap());
                     Ok(SDOption::LoadBalancing { priority, weight })
                 }
             }
@@ -276,13 +281,13 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 9 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u32(&data[4..8]);
+                    let address = u32::from_be_bytes(data[4..8].try_into().unwrap());
                     let l4_proto = match data[9] {
                         0x6 => SDOptionTransportProto::TCP,
                         0x11 => SDOptionTransportProto::UDP,
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[10..12]);
+                    let port = u16::from_be_bytes(data[10..12].try_into().unwrap());
                     Ok(SDOption::Ipv4Endpoint {
                         addr: Ipv4Addr::from(address),
                         transport: l4_proto,
@@ -295,13 +300,13 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 0x15 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u128(&data[4..]);
+                    let address = u128::from_be_bytes(data[4..4 + 16].try_into().unwrap());
                     let l4_proto = match data[21] {
                         0x6 => SDOptionTransportProto::TCP,
                         0x11 => SDOptionTransportProto::UDP,
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[22..24]);
+                    let port = u16::from_be_bytes(data[22..24].try_into().unwrap());
                     Ok(SDOption::Ipv6Endpoint {
                         addr: Ipv6Addr::from(address),
                         transport: l4_proto,
@@ -315,12 +320,12 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 0x9 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u32(&data[4..8]);
+                    let address = u32::from_be_bytes(data[4..8].try_into().unwrap());
                     let _l4_proto = match data[9] {
                         0x11 => SDOptionTransportProto::UDP, // always UDP
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[10..12]);
+                    let port = u16::from_be_bytes(data[10..12].try_into().unwrap());
                     Ok(SDOption::Ipv4Multicast {
                         addr: Ipv4Addr::from(address),
                         port,
@@ -333,12 +338,12 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 0x15 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u128(&data[4..]);
+                    let address = u128::from_be_bytes(data[4..4 + 16].try_into().unwrap());
                     let _l4_proto = match data[21] {
                         0x11 => SDOptionTransportProto::UDP,
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[22..24]);
+                    let port = u16::from_be_bytes(data[22..24].try_into().unwrap());
                     Ok(SDOption::Ipv6Multicast {
                         addr: Ipv6Addr::from(address),
                         port,
@@ -351,12 +356,12 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 0x9 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u32(&data[4..8]);
+                    let address = u32::from_be_bytes(data[4..8].try_into().unwrap());
                     let _l4_proto = match data[9] {
                         0x11 => SDOptionTransportProto::UDP, // always UDP
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[10..12]);
+                    let port = u16::from_be_bytes(data[10..12].try_into().unwrap());
                     Ok(SDOption::Ipv4SDEndpoint {
                         addr: Ipv4Addr::from(address),
                         port,
@@ -369,12 +374,12 @@ impl TryFrom<&[u8]> for SDOption {
                 if length != 0x15 {
                     Err(())
                 } else {
-                    let address = BigEndian::read_u128(&data[4..]);
+                    let address = u128::from_be_bytes(data[4..4 + 16].try_into().unwrap());
                     let _l4_proto = match data[21] {
                         0x11 => SDOptionTransportProto::UDP,
                         _ => return Err(()),
                     };
-                    let port = BigEndian::read_u16(&data[22..24]);
+                    let port = u16::from_be_bytes(data[22..24].try_into().unwrap());
                     Ok(SDOption::Ipv6SDEndpoint {
                         addr: Ipv6Addr::from(address),
                         port,
@@ -426,6 +431,7 @@ fn parse_configuration_string(data: &[u8]) -> Vec<(ConfigurationKey, String)> {
     entries
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<Vec<u8>> for SDOption {
     fn into(self) -> Vec<u8> {
         let mut option_bytes = Vec::new();
@@ -442,11 +448,10 @@ impl Into<Vec<u8>> for SDOption {
                 cfg_entry.push(0u8);
 
                 let config_option_len: u16 = cfg_entry.len() as u16 + 1; // length includes the reserved byte
-                let mut buf = [0u8; 2];
-                byteorder::BigEndian::write_u16(&mut buf, config_option_len);
+                let len_bytes = config_option_len.to_be_bytes();
 
                 //let mut config_option_bytes = Vec::new();
-                option_bytes.extend(buf);
+                option_bytes.extend(len_bytes);
                 option_bytes.push(0x01); // type
                 option_bytes.push(0x0); // reserved
                 option_bytes.extend(cfg_entry);
@@ -540,6 +545,7 @@ pub enum ServiceEntryType {
     Offer,
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<u8> for ServiceEntryType {
     fn into(self) -> u8 {
         match self {
@@ -610,12 +616,12 @@ impl ServiceEntry {
             _ => None,
         }
     }
-    fn set_index1_options(&mut self, i: u8, num_options: u8) {
+    pub fn set_index1_options(&mut self, i: u8, num_options: u8) {
         self.data[8..16].store(i);
         self.data[24..28].store(num_options);
     }
 
-    fn index1_options(&self) -> (u8, u8) {
+    pub fn index1_options(&self) -> (u8, u8) {
         (self.data[8..16].load(), self.data[24..28].load())
     }
 
