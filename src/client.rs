@@ -112,7 +112,7 @@ impl Client {
         tcp_client_dispatcher(&config, to, dispatch_rx, pending_calls).await
     }
 
-    pub async fn run_uds(&self, on: tokio::net::UnixStream) -> Result<(), io::Error> {
+    pub async fn run_uds(&self, on: std::os::unix::net::UnixStream) -> Result<(), io::Error> {
         let (config, dispatch_rx, pending_calls) = {
             let inner = self.inner();
             //let client = this.read().unwrap();
@@ -300,7 +300,7 @@ enum DispatcherMessage {
 }
 
 async fn uds_client_dispatcher(
-    unix_stream: UnixStream,
+    unix_stream: std::os::unix::net::UnixStream,
     mut dispatch_rx: Receiver<DispatcherMessage>,
     pending_calls: PendingCalls,
 ) -> Result<(), io::Error> {

@@ -74,8 +74,13 @@ impl SomeIPCodec {
         }
     }
 
-    pub fn create_uds_stream(uds: UnixStream) -> Result<UdsSomeIpConnection, io::Error> {
-        Ok(Framed::new(uds, SomeIPCodec::new(1400)))
+    pub fn create_uds_stream(
+        mut uds: std::os::unix::net::UnixStream,
+    ) -> Result<UdsSomeIpConnection, io::Error> {
+        //let uds = unsafe UnixStream::from_raw_fd(uds);
+        uds.set_nonblocking(true)?;
+        let mut tokio_uds = unsafe { tokio::net::UnixStream::from_std(uds)? };
+        Ok(Framed::new(tokio_uds, SomeIPCodec::new(1400)))
     }
 }
 
@@ -96,7 +101,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         let _r = rt.block_on(async {
-            let (tx, rx) = UnixStream::pair().unwrap();
+            let (tx, rx) = std::os::unix::net::UnixStream::pair().unwrap();
             let mut stream = SomeIPCodec::create_uds_stream(rx).unwrap();
 
             rt.spawn(async {

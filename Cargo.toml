@@ -22,6 +22,7 @@ pretty_env_logger = "0.4.0"
 rand = "0.8.4"
 serde = {version = "1.0", features = ["derive"]}
 tokio-util = {version = "0.6.5", features = ["codec", "net", "time"]}
+async-std = "1.9.0"
 
 [dev-dependencies]
 async-std = "1.9.0"

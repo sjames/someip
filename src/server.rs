@@ -46,7 +46,7 @@ impl Server {
     /// the handlers variable is a slice of (service_id, handler, major_version, minor_version)
     /// This call does not return as long as the connection is active.
     pub async fn serve_uds(
-        uds: UnixStream,
+        uds: std::os::unix::net::UnixStream,
         handlers: &[(
             u16,                           // service_id
             Arc<dyn ServerRequestHandler>, // handler

@@ -266,7 +266,8 @@ pub struct Field1 {
     
         let _result = rt.block_on(async {
     
-            let (server,client) = UnixStream::pair().unwrap();
+            let (server,client) = std::os::unix::net::UnixStream::pair().unwrap();
+            
     
             tokio::spawn(async move {
 

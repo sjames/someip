@@ -155,7 +155,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 client.run(to).await
             }
 
-            pub async fn run_uds(self, to: tokio::net::UnixStream ) -> Result<(), io::Error> {
+            pub async fn run_uds(self, to: std::os::unix::net::UnixStream ) -> Result<(), io::Error> {
                 let client = {
                     let client = self._client.clone();
                     client
@@ -685,7 +685,7 @@ fn create_dispatch_handler(
         #[allow(non_snake_case)]
         pub mod #module_name {
         use super::*;
-            pub async fn dispatch(this: Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            pub async fn dispatch(this: std::sync::Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
             //pub async fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 //let mut this = this.lock().unwrap();
                 match pkt.header().event_or_method_id() {
