@@ -61,7 +61,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let proxy_tokens = create_proxy(&service, &service_trait);
     proxy_tokens.to_tokens(&mut token_stream);
 
-    println!("GENERATED:{}", &token_stream.to_string());
+    //println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -187,6 +187,10 @@ fn method_has_return_type(method: &syn::TraitItemMethod) -> bool {
         ReturnType::Default => false,
         _ => true,
     }
+}
+
+fn method_is_async(method: &syn::TraitItemMethod) -> bool {
+    method.sig.asyncness.is_some()
 }
 
 /// Generate the code for a single RPC method in the trait
@@ -546,12 +550,48 @@ fn dispatch_method_call(id: u32, service: &Service, item_trait: &syn::ItemTrait)
     todo!()
 }
 
+/// If Ids are not specified in the service structure, we generate them.
+fn generate_method_ids(service: &Service, item_trait: &syn::ItemTrait) -> Vec<(u32, Ident)> {
+    // we need to skip the field get and set methods that we generated.
+    let field_ids = get_field_ids(service);
+
+    let auto_ids: Vec<(u32, Ident)> = item_trait
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let TraitItem::Method(m) = item {
+                if field_ids
+                    .iter()
+                    .find(|(i, f)| {
+                        println!("f:{}, m.sig.ident:{}", f, m.sig.ident);
+                        f == &m.sig.ident
+                    })
+                    .is_none()
+                {
+                    Some(m)
+                } else {
+                    println!("Skipped :{}", m.sig.ident);
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .enumerate()
+        .map(|(i, method)| (i as u32, method.sig.ident.clone()))
+        .collect();
+
+    println!("!!!!!!!!!!!Generated methid ids: {:?}", auto_ids);
+
+    get_method_ids(service)
+}
+
 fn create_dispatch_handler(
     struct_name: &Ident,
     service: &Service,
     item_trait: &syn::ItemTrait,
 ) -> syn::Item {
-    let method_id_name = get_method_ids(service);
+    let method_id_name = generate_method_ids(service, item_trait);
     let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
         .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i)).unwrap())
