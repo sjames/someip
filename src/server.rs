@@ -32,7 +32,6 @@ impl Server {
     }
 }
 
-#[async_trait]
 pub trait ServerRequestHandler: Send + Sync {
     //async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket>;
     fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>>;
