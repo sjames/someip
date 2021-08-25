@@ -634,13 +634,13 @@ fn create_dispatcher_struct(
             }
         }
 
-        impl From<Arc<dyn #struct_name >> for #dispatcher_name {
+        impl From<std::sync::Arc<dyn #struct_name >> for #dispatcher_name {
             fn from(server: std::sync::Arc<dyn #struct_name >) -> Self {
                 Self(server)
             }
         }
 
-        impl ServerRequestHandler for #dispatcher_name {
+        impl crate::ServerRequestHandler for #dispatcher_name {
             fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>> {
                 let handle = self.0.clone();
                 Box::pin(async move {
