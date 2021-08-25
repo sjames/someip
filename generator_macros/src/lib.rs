@@ -12,6 +12,7 @@ use syn::{Expr, Signature, *};
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let service = parse_macro_input!(attr as Service);
     let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
+    println!("parse complete");
 
     let service = create_method_ids(service, &service_trait);
 
@@ -58,7 +59,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let proxy_tokens = create_proxy(&service, &service_trait);
     proxy_tokens.to_tokens(&mut token_stream);
 
-    //println!("GENERATED:{}", &token_stream.to_string());
+    println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -494,7 +495,8 @@ fn find_method_by_ident<'a>(
 }
 
 fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenStream2 {
-    let method = find_method_by_name(method_name, item_trait).expect("Expecting method");
+    let method = find_method_by_name(method_name, item_trait)
+        .expect(&format!("Expecting method : {}", method_name));
     let input_struct_name = input_struct_name_from_method(method);
     let method_name = &method.sig.ident;
 
@@ -531,7 +533,7 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
 
 fn create_field_getter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let field_get_name = format!("get_{}", field_name);
-    let method = find_method_by_name(&field_get_name, item_trait).expect("Expecting method");
+    let method = find_method_by_name(&field_get_name, item_trait).expect(&format!("Expecting method {}",field_name));
     let method_name = &method.sig.ident;
     let params: Vec<syn::Pat> = method
         .sig
@@ -579,7 +581,7 @@ fn get_method_ids(service: &Service) -> Vec<(u32, Ident)> {
 }
 
 fn get_field_ids(service: &Service) -> Vec<(u32, Ident)> {
-    get_ids(service, "events")
+    get_ids(service, "fields")
 }
 
 fn get_ids(service: &Service, id_type: &str) -> Vec<(u32, Ident)> {
