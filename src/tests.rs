@@ -69,34 +69,13 @@ pub struct Field1 {
         fn echo_struct(&self, value : Field1) -> Result<Field1, EchoError>;
     }
 
-    #[service_impl]
+    #[service_impl(EchoServer)]
     pub struct EchoServerImpl {
         value1 : Field1,
     }
 
-    pub struct EchoServerImplHandle(Arc<Mutex<EchoServerImpl>>);
-    unsafe impl Send for EchoServerImplHandle{}
-
-    pub struct Handler(Arc<dyn EchoServer>);
-
-    impl Handler {
-        pub fn create_handler() -> Arc<dyn ServerRequestHandler> {
-            Arc::new(Handler(Arc::new(EchoServerImpl{ value1: Field1::default() })))
-
-        }
-    }
-
-     impl ServerRequestHandler for Handler {
-
-        fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>> {
-            let handle = self.0.clone();
-            Box::pin(async move {
-                EchoServer_dispatcher::dispatch(handle,message).await
-            })
-        }
-            }
-
-
+  
+    
     #[async_trait]
     impl EchoServer for EchoServerImpl {
         fn echo_int(&self, value: i32) -> Result<i32, EchoError> {
@@ -176,7 +155,7 @@ pub struct Field1 {
     
             tokio::spawn(async move {
                 //let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
-                let handler = Handler::create_handler();
+                let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
                 println!("Going to run server");
                 let res = Server::serve(at, handler, config, 45,1,0, tx).await;
                 println!("Server terminated");
@@ -270,12 +249,12 @@ pub struct Field1 {
             
     
             tokio::spawn(async move {
-
-                let handler = Handler::create_handler();
+                
+                let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
 
                 println!("Going to run server");
                 let handlers = [(45u16, handler, 1, 0)];
-                let res = Server::serve_uds(server, &handlers).await;
+                let res = Server::serve_uds(server, &handlers[..]).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
