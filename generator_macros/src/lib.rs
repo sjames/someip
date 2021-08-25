@@ -621,8 +621,9 @@ fn create_dispatcher_struct(
     service: &Service,
     item_trait: &syn::ItemTrait,
 ) -> TokenStream2 {
-    let module_name = format_ident!("{}_dispatcher", struct_name);
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
+    let dispatcher_function =
+        format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
 
     let ts = quote! {
         pub struct #dispatcher_name (std::sync::Arc<dyn #struct_name >);
@@ -643,7 +644,7 @@ fn create_dispatcher_struct(
             fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>> {
                 let handle = self.0.clone();
                 Box::pin(async move {
-                    #module_name :: dispatch(handle, message).await
+                    #dispatcher_function(handle, message).await
                 })
             }
         }
@@ -656,7 +657,7 @@ fn create_dispatch_handler(
     struct_name: &Ident,
     service: &Service,
     item_trait: &syn::ItemTrait,
-) -> syn::Item {
+) -> syn::ItemFn {
     let method_id_name = get_method_ids(service);
     let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
@@ -719,17 +720,19 @@ fn create_dispatch_handler(
 
     let module_name = format_ident!("{}_dispatcher", struct_name);
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
+    let dispatcher_function =
+        format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
     //let method_reply_tokens = if method_has_return_type()
 
     // We expect that there is a struct (or enum with the name  <trait>Server)
     //let server_struct_name = format_ident!("{}ServerDispatcher", struct_name);
     let dispatch_tokens = quote! {
          #[allow(non_snake_case)]
-        pub mod #module_name {
-        use bincode::{deserialize, serialize};
-        use bytes::Bytes;
-        use super::*;
-            pub async fn dispatch(this: std::sync::Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+        //pub mod #module_name {
+        //use bincode::{deserialize, serialize};
+        //use bytes::Bytes;
+        //use super::*;
+            pub async fn #dispatcher_function (this: std::sync::Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
             //pub async fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 //let mut this = this.lock().unwrap();
                 match pkt.header().event_or_method_id() {
@@ -780,12 +783,12 @@ fn create_dispatch_handler(
                     }
                 }
             }
-        }// mod dispatcher
+        //}// mod dispatcher
     };
 
     //println!("dispatch function\n:{}", &dispatch_tokens.to_string());
 
-    let method: syn::Item = syn::parse2(dispatch_tokens).unwrap();
+    let method: syn::ItemFn = syn::parse2(dispatch_tokens).unwrap();
     method
 }
 
@@ -986,6 +989,7 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
     let dispatcher_module_name =
         format_ident!("{}_dispatcher", service.segments.last().unwrap().ident);
     let dispatcher_name = format_ident!("{}Dispatcher", service.segments.last().unwrap().ident);
+
     let dispatcher_name_stem: Vec<&Ident> = service
         .segments
         .iter()
