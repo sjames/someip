@@ -12,7 +12,6 @@ use syn::{Expr, Signature, *};
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let service = parse_macro_input!(attr as Service);
     let mut service_trait = parse_macro_input!(item as syn::ItemTrait);
-    println!("parse complete");
 
     let service = create_method_ids(service, &service_trait);
 
@@ -59,7 +58,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let proxy_tokens = create_proxy(&service, &service_trait);
     proxy_tokens.to_tokens(&mut token_stream);
 
-    println!("GENERATED:{}", &token_stream.to_string());
+    //println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -144,7 +143,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
                 let client = Client::new(service_id, client_id, config);
                 #struct_name {
-                    #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id ) ),*,
+                    #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id ) ,)*
                     _client : client,
                 }
             }
