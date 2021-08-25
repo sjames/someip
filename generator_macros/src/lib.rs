@@ -640,7 +640,7 @@ fn create_dispatcher_struct(
             }
         }
 
-        impl crate::ServerRequestHandler for #dispatcher_name {
+        impl ServerRequestHandler for #dispatcher_name {
             fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>> {
                 let handle = self.0.clone();
                 Box::pin(async move {
