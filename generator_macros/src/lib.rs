@@ -85,7 +85,7 @@ fn allocate_next_valid_method_id(
         let entry: ServiceEntry =
             syn::parse_str(&format!("method_ids([{}]{})", start, method_name)).unwrap();
 
-        println!("Allocated method id {} to {}", start, method_name);
+        //println!("Allocated method id {} to {}", start, method_name);
 
         service.entries.push(entry);
         (start + 1, service)
