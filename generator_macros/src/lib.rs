@@ -52,7 +52,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let dispatch_handler_with_use = quote! {
         //use someip::*;
         use bincode::{deserialize, serialize};
-        use bytes::Bytes;
+        //use bytes::Bytes;
         #dispatcher_struct
         #dispatch_handler
     };
@@ -418,7 +418,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
             header.set_service_id(self.service_id);
 
             let input_raw = serialize(&input_params).unwrap();
-            let payload = Bytes::from(input_raw);
+            let payload = bytes::Bytes::from(input_raw);
             let packet = SomeIpPacket::new(header, payload);
             #call_and_reply_tokens
         }
@@ -554,7 +554,7 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
         let res_in_param : Result<#input_struct_name,_> = deserialize(params_raw);
         if res_in_param.is_err() {
             log::error!("Deserialization error for service:{} method:{}", pkt.header().service_id(), pkt.header().event_or_method_id());
-            return Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, Bytes::new()));
+            return Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, bytes::Bytes::new()));
         }
         let in_param = res_in_param.unwrap();
         let res = this.#method_name(#(in_param.#params),*)#await_if_needed;
@@ -739,12 +739,12 @@ fn create_dispatch_handler(
                 match res {
                     Ok(r) => {
                         let reply_raw = serialize(&r).unwrap();
-                        let reply_payload = Bytes::from(reply_raw);
+                        let reply_payload = bytes::Bytes::from(reply_raw);
                         Some(SomeIpPacket::reply_packet_from(pkt, ReturnCode::Ok, reply_payload))
                     }
                     Err(e) => {
                         let error_raw = serialize(&e).unwrap();
-                        let error_payload = Bytes::from(error_raw);
+                        let error_payload = bytes::Bytes::from(error_raw);
                         Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, error_payload))
                     }
                 }
@@ -783,7 +783,7 @@ fn create_dispatch_handler(
                             // get
                             let field = #event_getters .unwrap();
                             let reply_raw = serialize(&field).unwrap();
-                            let reply_payload = Bytes::from(reply_raw);
+                            let reply_payload = bytes::Bytes::from(reply_raw);
                             Some(SomeIpPacket::reply_packet_from(
                                 pkt,
                                 ReturnCode::Ok,
@@ -796,7 +796,7 @@ fn create_dispatch_handler(
                             match res {
                                 Ok(r) => {
                                     let reply_raw = serialize(&r).unwrap();
-                                    let reply_payload = Bytes::from(reply_raw);
+                                    let reply_payload = bytes::Bytes::from(reply_raw);
                                     Some(SomeIpPacket::reply_packet_from(
                                         pkt,
                                         ReturnCode::Ok,
@@ -809,14 +809,14 @@ fn create_dispatch_handler(
                                     Some(SomeIpPacket::error_packet_from(
                                         pkt,
                                         ReturnCode::NotOk,
-                                        Bytes::new(),
+                                        bytes::Bytes::new(),
                                     ))
                                 }
                             }
                         }
                     })*
                     _ => {
-                        Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::UnknownMethod, Bytes::new()))
+                        Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::UnknownMethod, bytes::Bytes::new()))
                     }
                 }
             }
