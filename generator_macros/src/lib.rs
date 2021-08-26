@@ -145,7 +145,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
         }
 
         impl ServiceIdentifier for #struct_name {
-            fn service_name(&self) -> &str {
+            fn service_name() -> &'static str {
                 #service_name
             }
         }
@@ -672,7 +672,7 @@ fn create_dispatcher_struct(
         }
 
         impl ServiceIdentifier for #dispatcher_name {
-            fn service_name(&self) -> &str {
+            fn service_name() -> &'static str {
                 #service_name
             }
         }
@@ -1042,12 +1042,12 @@ struct ServiceList {
 /// A marker to apply on Service implementations
 #[proc_macro_attribute]
 pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
-    let mut service_trait = parse_macro_input!(item as syn::ItemStruct);
+    let mut service_struct = parse_macro_input!(item as syn::ItemStruct);
     let services = parse_macro_input!(attr as ServiceList);
-    let impl_name = &service_trait.ident;
+    let impl_name = &service_struct.ident;
 
     let mut token_stream = TokenStream2::new();
-    service_trait.to_tokens(&mut token_stream);
+    service_struct.to_tokens(&mut token_stream);
 
     for service in services.services {
         let dispatcher_module_name =
@@ -1069,6 +1069,12 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
                 /// attribute on this structure.
                 pub fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> std::sync::Arc<dyn ServerRequestHandler> {
                     std::sync::Arc::new(#dispatcher_name ::new (server))
+                }
+            }
+
+            impl ServiceIdentifier for #impl_name {
+                fn service_name() -> &'static str {
+                    #dispatcher_name :: service_name()
                 }
             }
         };

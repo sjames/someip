@@ -38,7 +38,7 @@ pub trait ServerRequestHandler: Send + Sync {
 }
 pub trait ServiceIdentifier {
     /// The service name for this service
-    fn service_name(&self) -> &str;
+    fn service_name() -> &'static str;
 }
 
 #[allow(clippy::type_complexity)]
