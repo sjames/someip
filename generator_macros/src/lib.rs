@@ -50,9 +50,6 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
         create_dispatcher_struct(&service_trait.ident, &service, &service_trait);
 
     let dispatch_handler_with_use = quote! {
-        //use someip::*;
-        use bincode::{deserialize, serialize};
-        //use bytes::Bytes;
         #dispatcher_struct
         #dispatch_handler
     };
@@ -348,7 +345,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                         MessageType::Response => {
                             // successful reply, deserialize the payload
                             let params_raw = pkt.payload().as_ref();
-                            let maybe_response : Result<#success_type,_> = deserialize(params_raw);
+                            let maybe_response : Result<#success_type,_> = bincode::deserialize(params_raw);
                             if let Ok(response) = maybe_response {
                                 Ok(response)
                             } else {
@@ -373,7 +370,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                         MessageType::Error => {
                             // We need to deserialize the error type
                             let params_raw = pkt.payload().as_ref();
-                            let maybe_response : Result<#failure_type,_> = deserialize(params_raw);
+                            let maybe_response : Result<#failure_type,_> = bincode::deserialize(params_raw);
                             if let Ok(response) = maybe_response {
                                 Err(MethodError::Error(response))
                             } else {
@@ -417,7 +414,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
             header.message_type = #message_type ;
             header.set_service_id(self.service_id);
 
-            let input_raw = serialize(&input_params).unwrap();
+            let input_raw = bincode::serialize(&input_params).unwrap();
             let payload = bytes::Bytes::from(input_raw);
             let packet = SomeIpPacket::new(header, payload);
             #call_and_reply_tokens
@@ -551,7 +548,7 @@ fn create_deser_tokens(method_name: &str, item_trait: &syn::ItemTrait) -> TokenS
     };
 
     let call_method = quote! {
-        let res_in_param : Result<#input_struct_name,_> = deserialize(params_raw);
+        let res_in_param : Result<#input_struct_name,_> = bincode::deserialize(params_raw);
         if res_in_param.is_err() {
             log::error!("Deserialization error for service:{} method:{}", pkt.header().service_id(), pkt.header().event_or_method_id());
             return Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, bytes::Bytes::new()));
@@ -602,7 +599,7 @@ fn create_field_setter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> Toke
     let field_type = &params[0];
 
     let call_method = quote! {
-        let field: #field_type = deserialize(params_raw).unwrap();
+        let field: #field_type = bincode::deserialize(params_raw).unwrap();
         let res = this.#method_name (field);
     };
 
@@ -738,12 +735,12 @@ fn create_dispatch_handler(
             quote! {
                 match res {
                     Ok(r) => {
-                        let reply_raw = serialize(&r).unwrap();
+                        let reply_raw = bincode::serialize(&r).unwrap();
                         let reply_payload = bytes::Bytes::from(reply_raw);
                         Some(SomeIpPacket::reply_packet_from(pkt, ReturnCode::Ok, reply_payload))
                     }
                     Err(e) => {
-                        let error_raw = serialize(&e).unwrap();
+                        let error_raw = bincode::serialize(&e).unwrap();
                         let error_payload = bytes::Bytes::from(error_raw);
                         Some(SomeIpPacket::error_packet_from(pkt, ReturnCode::NotOk, error_payload))
                     }
@@ -782,7 +779,7 @@ fn create_dispatch_handler(
                         if pkt.payload().len() == 0 {
                             // get
                             let field = #event_getters .unwrap();
-                            let reply_raw = serialize(&field).unwrap();
+                            let reply_raw = bincode::serialize(&field).unwrap();
                             let reply_payload = bytes::Bytes::from(reply_raw);
                             Some(SomeIpPacket::reply_packet_from(
                                 pkt,
@@ -795,7 +792,7 @@ fn create_dispatch_handler(
                             #event_setters
                             match res {
                                 Ok(r) => {
-                                    let reply_raw = serialize(&r).unwrap();
+                                    let reply_raw = bincode::serialize(&r).unwrap();
                                     let reply_payload = bytes::Bytes::from(reply_raw);
                                     Some(SomeIpPacket::reply_packet_from(
                                         pkt,
