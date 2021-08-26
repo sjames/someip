@@ -13,17 +13,19 @@ pub struct Field<T> {
     val: Arc<RwLock<Option<T>>>,
     client: Client,
     field_id: u16,
+    service_id: u16,
 }
 
 impl<T> Field<T>
 where
     T: Default + Serialize + DeserializeOwned,
 {
-    pub fn new(val: T, client: Client, field_id: u16) -> Self {
+    pub fn new(val: T, client: Client, field_id: u16, service_id: u16) -> Self {
         Self {
             val: Arc::new(RwLock::new(None)),
             client,
             field_id,
+            service_id,
         }
     }
 
@@ -49,6 +51,7 @@ where
         let mut header = SomeIpHeader::default();
         header.set_event_id(self.field_id);
         header.message_type = MessageType::Request;
+        header.set_service_id(self.service_id);
         let payload_raw = serialize(&val).unwrap();
         let packet = SomeIpPacket::new(header, Bytes::from(payload_raw));
         let res = self.client.call(packet, timeout).await;
@@ -78,6 +81,7 @@ where
         let mut header = SomeIpHeader::default();
         header.set_event_id(self.field_id);
         header.message_type = MessageType::Request;
+        header.set_service_id(self.service_id);
         let packet = SomeIpPacket::new(header, Bytes::new());
         if let Ok(reply) = self.client.call(packet, timeout).await {
             match reply {

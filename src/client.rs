@@ -72,7 +72,7 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+    pub fn new(client_id: u16, config: Configuration) -> Self {
         let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
         ClientInner {
             config,
@@ -81,13 +81,12 @@ impl ClientInner {
             dispatch_rx: Arc::new(Mutex::new(Some(dispatch_rx))),
             client_id,
             session_id: AtomicU16::new(0),
-            //service_id,
         }
     }
 }
 
 impl Client {
-    pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+    pub fn new(client_id: u16, config: Configuration) -> Self {
         //let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
         Self {
             //config,
@@ -97,7 +96,7 @@ impl Client {
             //client_id,
             //session_id: AtomicU16::new(0),
             //service_id,
-            inner: Arc::new(RwLock::new(ClientInner::new(service_id, client_id, config))),
+            inner: Arc::new(RwLock::new(ClientInner::new(client_id, config))),
         }
     }
 
@@ -443,7 +442,7 @@ mod tests {
         let config = Configuration::default();
 
         let client_config = config.clone();
-        let client = Client::new(0x45, 10, client_config);
+        let client = Client::new(10, client_config);
 
         let rt = Runtime::new().unwrap();
 

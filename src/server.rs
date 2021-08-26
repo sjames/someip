@@ -33,8 +33,12 @@ impl Server {
 }
 
 pub trait ServerRequestHandler: Send + Sync {
-    //async fn handle(&mut self, message: SomeIpPacket) -> Option<SomeIpPacket>;
+    /// Return a boxed future that can be used to dispatch this message
     fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>>;
+}
+pub trait ServiceIdentifier {
+    /// The service name for this service
+    fn service_name(&self) -> &str;
 }
 
 #[allow(clippy::type_complexity)]

@@ -116,6 +116,7 @@ fn create_method_ids(service: Service, item_trait: &ItemTrait) -> Service {
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
     let fields = get_fields(service);
+    let service_name = &service.name.service_name;
 
     let mut field_name = Vec::new();
     for field in &fields {
@@ -143,11 +144,17 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             service_id : u16,
         }
 
+        impl ServiceIdentifier for #struct_name {
+            fn service_name(&self) -> &str {
+                #service_name
+            }
+        }
+
         impl #struct_name {
             pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
-                let client = Client::new(service_id, client_id, config);
+                let client = Client::new(client_id, config);
                 #struct_name {
-                    #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id ) ,)*
+                    #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id,service_id,) ,)*
                     _client : client,
                     service_id,
                 }
@@ -158,7 +165,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             /// clonable.
             pub fn new_with_dispatcher(service_id: u16, config: Configuration, client_dispatcher : Client) -> Self {
                 #struct_name {
-                    #(#field_name :  Field::new(#field_type::default(), client_dispatcher.clone(), #field_id ) ,)*
+                    #(#field_name :  Field::new(#field_type::default(), client_dispatcher.clone(), #field_id, service_id ) ,)*
                     _client : client_dispatcher,
                     service_id,
                 }
@@ -185,6 +192,8 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 };
                 client.run_uds(to).await
             }
+
+
         }
     };
 
@@ -645,6 +654,7 @@ fn create_dispatcher_struct(
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
     let dispatcher_function =
         format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
+    let service_name = &service.name.service_name;
 
     let ts = quote! {
         pub struct #dispatcher_name (std::sync::Arc<dyn #struct_name >);
@@ -658,6 +668,12 @@ fn create_dispatcher_struct(
         impl From<std::sync::Arc<dyn #struct_name >> for #dispatcher_name {
             fn from(server: std::sync::Arc<dyn #struct_name >) -> Self {
                 Self(server)
+            }
+        }
+
+        impl ServiceIdentifier for #dispatcher_name {
+            fn service_name(&self) -> &str {
+                #service_name
             }
         }
 
@@ -818,6 +834,7 @@ fn input_struct_name_from_method(m: &syn::TraitItemMethod) -> proc_macro2::Ident
 }
 
 // Add a super trait to this trait item.
+// The server must be Send + Sync
 fn add_super_trait(item_trait: &mut syn::ItemTrait) {
     let tokens = quote! {
         Send
@@ -873,8 +890,15 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
     item_structs
 }
 
+/*
+colon: Option<Token![:]>,
+#[parse_if(colon.is_some())]
+ */
 #[derive(Parse)]
 struct Service {
+    name: ServiceName,
+    comma: Option<Token![,]>,
+    //#[parse_if(comma.is_some())]
     #[call(Punctuated::<ServiceEntry, Token![,]>::parse_terminated)]
     entries: Punctuated<ServiceEntry, Token![,]>,
 }
@@ -991,6 +1015,15 @@ struct Method {
 }
 
 #[derive(Parse)]
+struct ServiceName {
+    ident: Ident, // must be name
+    #[paren]
+    arg_paren: token::Paren,
+    #[inside(arg_paren)]
+    service_name: syn::LitStr,
+}
+
+#[derive(Parse)]
 struct ServiceEntry {
     ident: Ident,
     #[paren]
@@ -1000,40 +1033,48 @@ struct ServiceEntry {
     fields: Punctuated<Field, Token![,]>,
 }
 
+#[derive(Parse)]
+struct ServiceList {
+    #[call(Punctuated::<syn::Path, Token![,]>::parse_terminated)]
+    services: Punctuated<syn::Path, Token![,]>,
+}
+
 /// A marker to apply on Service implementations
 #[proc_macro_attribute]
 pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
     let mut service_trait = parse_macro_input!(item as syn::ItemStruct);
-    let service = parse_macro_input!(attr as syn::Path);
+    let services = parse_macro_input!(attr as ServiceList);
     let impl_name = &service_trait.ident;
-
-    let dispatcher_module_name =
-        format_ident!("{}_dispatcher", service.segments.last().unwrap().ident);
-    let dispatcher_name = format_ident!("{}Dispatcher", service.segments.last().unwrap().ident);
-
-    let dispatcher_name_stem: Vec<&Ident> = service
-        .segments
-        .iter()
-        .take(service.segments.len() - 1)
-        .map(|s| &s.ident)
-        .collect();
-
-    println!("{:?}", dispatcher_name_stem);
-
-    let service_impl = quote! {
-        impl #impl_name {
-            /// Create the ServerRequestHandler for this object. This function is generated by the #[service_impl]
-            /// attribute on this structure.
-            pub fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> std::sync::Arc<dyn ServerRequestHandler> {
-                std::sync::Arc::new(#dispatcher_name ::new (server))
-            }
-        }
-    };
 
     let mut token_stream = TokenStream2::new();
     service_trait.to_tokens(&mut token_stream);
 
-    token_stream.extend(service_impl);
+    for service in services.services {
+        let dispatcher_module_name =
+            format_ident!("{}_dispatcher", service.segments.last().unwrap().ident);
+        let dispatcher_name = format_ident!("{}Dispatcher", service.segments.last().unwrap().ident);
+
+        let dispatcher_name_stem: Vec<&Ident> = service
+            .segments
+            .iter()
+            .take(service.segments.len() - 1)
+            .map(|s| &s.ident)
+            .collect();
+
+        println!("{:?}", dispatcher_name_stem);
+
+        let service_impl = quote! {
+            impl #impl_name {
+                /// Create the ServerRequestHandler for this object. This function is generated by the #[service_impl]
+                /// attribute on this structure.
+                pub fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> std::sync::Arc<dyn ServerRequestHandler> {
+                    std::sync::Arc::new(#dispatcher_name ::new (server))
+                }
+            }
+        };
+
+        token_stream.extend(service_impl);
+    }
 
     println!("GENERATED_IMPL:{}", &token_stream.to_string());
 

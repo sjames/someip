@@ -55,6 +55,7 @@ pub struct Field1 {
     }
 
     #[service(
+        name("org.sabaton.Echoservice"),
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32), 
         method_ids([2]echo_string, [3]no_reply),
@@ -157,7 +158,7 @@ pub struct Field1 {
                 //let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
                 let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
                 println!("Going to run server");
-                let res = Server::serve(at, handler, config, 45,1,0, tx).await;
+                let res = Server::serve(at, handler, config, 47,1,0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
@@ -167,7 +168,7 @@ pub struct Field1 {
             async_std::task::sleep(Duration::from_millis(20)).await;
     
             let config = Configuration::default();
-            let mut proxy = EchoServerProxy::new(45, 0, config);
+            let mut proxy = EchoServerProxy::new(47, 0, config);
             let addr = "127.0.0.1:8092".parse::<SocketAddr>().unwrap();
             let proxy_for_task = proxy.clone();
       
