@@ -1076,7 +1076,7 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
                  /// a separate dispatcher.
                  pub fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> Vec<(&'static str,std::sync::Arc<dyn ServerRequestHandler>)> {
                      vec![
-                         #( ( #dispatchers :: service_name(),std::sync::Arc::new(#dispatchers ::new (server))) ,)*
+                         #( ( #dispatchers :: service_name(),std::sync::Arc::new(#dispatchers ::new (server.clone()))) ,)*
                      ]
                  }
              }
