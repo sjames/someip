@@ -28,6 +28,7 @@ pub use call_properties::CallProperties;
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
 pub use field::Field;
+pub use futures::future::BoxFuture;
 pub use server::{Server, ServerRequestHandler, ServiceIdentifier};
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::ConnectionMessage;
