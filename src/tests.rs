@@ -158,7 +158,7 @@ pub struct Field1 {
                 //let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
                 let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
                 println!("Going to run server");
-                let res = Server::serve(at, handler, config, 47,1,0, tx).await;
+                let res = Server::serve(at, handler[0].1.clone(), config, 47,1,0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
@@ -254,8 +254,15 @@ pub struct Field1 {
                 let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
 
                 println!("Going to run server");
-                let handlers = [(45u16, handler, 1, 0)];
-                let res = Server::serve_uds(server, &handlers[..]).await;
+
+                let handlers : Vec<(u16, Arc<dyn ServerRequestHandler>, u8, u32)> = handler.into_iter().map(|(a,h)|{
+                    match a {
+                        "org.sabaton.Echoservice" => (45u16,h,1,0),
+                        _=> (45u16,h,1,0),
+                    }
+                }).collect();
+               
+                let res = Server::serve_uds(server, &handlers).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
