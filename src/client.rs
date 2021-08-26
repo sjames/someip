@@ -66,7 +66,7 @@ struct ClientInner {
     pending_calls: PendingCalls,
     dispatch_tx: Sender<DispatcherMessage>,
     dispatch_rx: Arc<Mutex<Option<Receiver<DispatcherMessage>>>>,
-    service_id: u16,
+    //service_id: u16,
     client_id: u16,
     session_id: AtomicU16,
 }
@@ -81,7 +81,7 @@ impl ClientInner {
             dispatch_rx: Arc::new(Mutex::new(Some(dispatch_rx))),
             client_id,
             session_id: AtomicU16::new(0),
-            service_id,
+            //service_id,
         }
     }
 }
@@ -153,7 +153,7 @@ impl Client {
                     .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
             let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
             message.header_mut().request_id = request_id;
-            message.header_mut().set_service_id(inner.service_id);
+            //message.header_mut().set_service_id(inner.service_id);
 
             log::debug!("Call:Pkt: {:?}", message.header());
 
@@ -236,7 +236,7 @@ impl Client {
                     .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |s| Some(s + 1));
             let request_id = (((inner.client_id as u32) << 16) | session_id.unwrap() as u32) as u32;
             message.header_mut().request_id = request_id;
-            message.header_mut().set_service_id(inner.service_id);
+            //message.header_mut().set_service_id(inner.service_id);
             (inner.dispatch_tx.clone(), message)
         };
         // everything below is sendable

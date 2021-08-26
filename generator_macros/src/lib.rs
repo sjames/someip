@@ -140,6 +140,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
         pub struct #struct_name {
             #(pub #field_name: Field<#field_type>,)*
             _client : Client,
+            service_id : u16,
         }
 
         impl #struct_name {
@@ -148,8 +149,27 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 #struct_name {
                     #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id ) ,)*
                     _client : client,
+                    service_id,
                 }
             }
+
+            /// Create a proxy for this type connecting to a provided client dispatcher. You can
+            /// attach multiple proxies to a single dispatcher. A client dispatcher is cheaply
+            /// clonable.
+            pub fn new_with_dispatcher(service_id: u16, config: Configuration, client_dispatcher : Client) -> Self {
+                #struct_name {
+                    #(#field_name :  Field::new(#field_type::default(), client_dispatcher.clone(), #field_id ) ,)*
+                    _client : client_dispatcher,
+                    service_id,
+                }
+            }
+
+            /// Get a copy of the client dispatcher. You can attach multiple
+            /// clients to a dispatcher.
+            pub fn get_dispatcher(&self) -> Client {
+                self._client.clone()
+            }
+
             pub async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error> {
                 let client = {
                     let client = self._client.clone();
@@ -386,6 +406,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
             let mut header = SomeIpHeader::default();
             header.set_method_id(#id);
             header.message_type = #message_type ;
+            header.set_service_id(self.service_id);
 
             let input_raw = serialize(&input_params).unwrap();
             let payload = Bytes::from(input_raw);
