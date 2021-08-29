@@ -62,7 +62,7 @@ impl Client {
 }
 
 struct ClientInner {
-    config: Configuration,
+    config: Arc<Configuration>,
     pending_calls: PendingCalls,
     dispatch_tx: Sender<DispatcherMessage>,
     dispatch_rx: Arc<Mutex<Option<Receiver<DispatcherMessage>>>>,
@@ -72,7 +72,7 @@ struct ClientInner {
 }
 
 impl ClientInner {
-    pub fn new(client_id: u16, config: Configuration) -> Self {
+    pub fn new(client_id: u16, config: Arc<Configuration>) -> Self {
         let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
         ClientInner {
             config,
@@ -86,7 +86,7 @@ impl ClientInner {
 }
 
 impl Client {
-    pub fn new(client_id: u16, config: Configuration) -> Self {
+    pub fn new(client_id: u16, config: Arc<Configuration>) -> Self {
         //let (dispatch_tx, dispatch_rx) = channel::<DispatcherMessage>(10);
         Self {
             //config,
@@ -439,7 +439,7 @@ mod tests {
         )])
         .unwrap();
 
-        let config = Configuration::default();
+        let config = Arc::new(Configuration::default());
 
         let client_config = config.clone();
         let client = Client::new(10, client_config);

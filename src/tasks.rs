@@ -75,7 +75,7 @@ pub enum ConnectionInfo {
 pub async fn tcp_server_task(
     tcp_dx_tx: Sender<DispatcherCommand>,
     at: &SocketAddr,
-    config: Configuration,
+    config: std::sync::Arc<Configuration>,
     service_id: u16,
     notify_tcp_tx: Sender<ConnectionInfo>,
 ) -> Result<(), io::Error> {
@@ -225,7 +225,7 @@ pub async fn uds_task(
 pub async fn udp_task(
     dx_tx: Sender<DispatcherCommand>,
     at: &SocketAddr,
-    _config: Configuration,
+    _config: std::sync::Arc<Configuration>,
     service_id: u16,
     notify_ucp_tx: Sender<ConnectionInfo>,
 ) -> Result<(), io::Error> {

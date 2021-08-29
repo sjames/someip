@@ -100,7 +100,7 @@ impl Server {
     pub async fn serve<'a>(
         at: SocketAddr,
         handler: Arc<dyn ServerRequestHandler>,
-        config: Configuration,
+        config: Arc<Configuration>,
         service_id: u16,
         major_version: u8,
         minor_version: u32,
@@ -118,9 +118,10 @@ impl Server {
 
         //cloning dx_tx tp move into the UDP task
         let dx_tx = dx_tx.clone();
-        let udp_task = tokio::spawn(async move {
-            udp_task(dx_tx, &at, (&config).clone(), service_id, notify_tcp_tx).await
-        });
+        let udp_task =
+            tokio::spawn(
+                async move { udp_task(dx_tx, &at, config, service_id, notify_tcp_tx).await },
+            );
 
         loop {
             if let Some(command) = dx_rx.recv().await {
@@ -232,7 +233,7 @@ mod tests {
         }
 
         let rt = Runtime::new().unwrap();
-        let config = Configuration::default();
+        let config = Arc::new(Configuration::default());
 
         let at = "127.0.0.1:8091".parse::<SocketAddr>().unwrap();
         println!("Test");

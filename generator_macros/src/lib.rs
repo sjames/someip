@@ -8,10 +8,9 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Expr, Signature, *};
 
-
 #[proc_macro_attribute]
 pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
-    service(attr,item)
+    service(attr, item)
 }
 
 #[proc_macro_attribute]
@@ -154,7 +153,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
         }
 
         impl #struct_name {
-            pub fn new(service_id: u16, client_id: u16, config: Configuration) -> Self {
+            pub fn new(service_id: u16, client_id: u16, config: std::sync::Arc<Configuration>) -> Self {
                 let client = Client::new(client_id, config);
                 #struct_name {
                     #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id,service_id,) ,)*

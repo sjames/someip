@@ -130,7 +130,7 @@ pub struct Field1 {
     pub fn echo_tests() {
     
         let rt = Runtime::new().unwrap();
-        let config = Configuration::default();
+        let config = Arc::new(Configuration::default());
     
         let at = "127.0.0.1:8092".parse::<SocketAddr>().unwrap();
         println!("Test");
@@ -167,7 +167,7 @@ pub struct Field1 {
     
             async_std::task::sleep(Duration::from_millis(20)).await;
     
-            let config = Configuration::default();
+            let config = Arc::new(Configuration::default());
             let mut proxy = EchoServerProxy::new(47, 0, config);
             let addr = "127.0.0.1:8092".parse::<SocketAddr>().unwrap();
             let proxy_for_task = proxy.clone();
@@ -271,7 +271,7 @@ pub struct Field1 {
     
             async_std::task::sleep(Duration::from_millis(20)).await;
     
-            let config = Configuration::default();
+            let config = Arc::new(Configuration::default());
             let mut proxy = EchoServerProxy::new(45, 0, config);
             let proxy_for_task = proxy.clone();
   
