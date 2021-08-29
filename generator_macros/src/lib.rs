@@ -165,7 +165,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             /// Create a proxy for this type connecting to a provided client dispatcher. You can
             /// attach multiple proxies to a single dispatcher. A client dispatcher is cheaply
             /// clonable.
-            pub fn new_with_dispatcher(service_id: u16, config: Configuration, client_dispatcher : Client) -> Self {
+            pub fn new_with_dispatcher(service_id: u16, client_dispatcher : Client) -> Self {
                 #struct_name {
                     #(#field_name :  Field::new(#field_type::default(), client_dispatcher.clone(), #field_id, service_id ) ,)*
                     _client : client_dispatcher,
