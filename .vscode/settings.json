@@ -4,8 +4,4 @@
     100
   ],
   "rust-analyzer.checkOnSave.command": "clippy"
-  //"rust-analyzer.cargo.target": "aarch64-unknown-none-softfloat",
-  //"rust-analyzer.cargo.features": [
-  //  "bsp_qemu_virt"
-  //]
 }
