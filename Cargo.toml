@@ -3,8 +3,9 @@ authors = ["Sojan James <sojan.james@gmail.com>"]
 edition = "2018"
 name = "someip"
 version = "0.1.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "SOME/IP Service and Client implementation"
+license-file = "LICENSE"
+homepage = "https://github.com/sjames/someip"
 
 [dependencies]
 bincode = "1.3"
