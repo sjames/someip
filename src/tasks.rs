@@ -227,6 +227,7 @@ pub async fn uds_task(
             }
         } else {
             log::error!("rx error, bailing out");
+            break;
         }
         //};
     }
