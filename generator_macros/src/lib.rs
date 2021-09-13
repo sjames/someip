@@ -373,12 +373,12 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                         MessageType::Request => {
                             log::error!("Proxy received Request packet. Ignored");
                             println!("Client call error1");
-                            Err(MethodError::ConnectionError)
+                            Err(MethodError::InvalidResponse)
                         }
                         MessageType::RequestNoReturn => {
                             log::error!("Proxy received RequestNoReturn packet. Ignored");
                             println!("Client call error2");
-                            Err(MethodError::ConnectionError)
+                            Err(MethodError::InvalidResponse)
                         }
                         MessageType::Notification => {
                             log::error!("Proxy received Notification packet as response. Ignored");
@@ -398,7 +398,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
                     }
                 }
                 Ok(ReplyData::Cancelled) => {
-                    Err(MethodError::ConnectionError)
+                    Err(MethodError::Cancelled)
                 }
                 Ok(ReplyData::Pending) => {
                     panic!("This should not happen")

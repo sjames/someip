@@ -35,6 +35,10 @@ where
     InvalidResponsePayload,
     #[error("Error payload was invalid")]
     InvalidErrorPayload,
+    #[error("Invalid response received")]
+    InvalidResponse,
+    #[error("Call was cancelled")]
+    Cancelled,
 }
 
 impl<T> MethodError<T>
