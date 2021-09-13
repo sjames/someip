@@ -205,7 +205,7 @@ pub async fn uds_task(
     let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
 
     loop {
-        tokio::select! {
+        //tokio::select! {
            Some(Ok(packet)) = rx.next() => {
                    let packet  = packet;
                    if let Err(e) = dx_tx
@@ -226,7 +226,7 @@ pub async fn uds_task(
                        break;
                    }
            }
-        };
+        //};
     }
 
     Err(io::Error::new(
