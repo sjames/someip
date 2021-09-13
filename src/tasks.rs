@@ -206,26 +206,28 @@ pub async fn uds_task(
 
     loop {
         //tokio::select! {
-           Some(Ok(packet)) = rx.next() => {
-                   let packet  = packet;
-                   if let Err(e) = dx_tx
-                       .send(DispatcherCommand::DispatchUds(packet, dispatch_tx.clone()))
-                       .await
-                   {
-                       log::error!("Error sending to dispatcher:{}", e);
-                       break;
-                   } else if let Some(r) = dispatch_reply.recv().await {
-                       if let DispatcherReply::ResponsePacket(Some(packet)) = r {
-                           if let Err(_e) = tx.send(packet).await {
-                               log::error!("Error sending response over TCP");
-                               break;
-                           }
-                       }
-                   } else {
-                       log::error!("Unable to receive reply from dispatcher");
-                       break;
-                   }
-           }
+        if let Some(Ok(packet)) = rx.next().await {
+            let packet = packet;
+            if let Err(e) = dx_tx
+                .send(DispatcherCommand::DispatchUds(packet, dispatch_tx.clone()))
+                .await
+            {
+                log::error!("Error sending to dispatcher:{}", e);
+                break;
+            } else if let Some(r) = dispatch_reply.recv().await {
+                if let DispatcherReply::ResponsePacket(Some(packet)) = r {
+                    if let Err(_e) = tx.send(packet).await {
+                        log::error!("Error sending response over TCP");
+                        break;
+                    }
+                }
+            } else {
+                log::error!("Unable to receive reply from dispatcher");
+                break;
+            }
+        } else {
+            log::error!("rx error, bailing out");
+        }
         //};
     }
 
