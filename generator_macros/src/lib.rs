@@ -76,7 +76,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let proxy_tokens = create_proxy(&service, &service_trait);
     proxy_tokens.to_tokens(&mut token_stream);
 
-    //println!("GENERATED:{}", &token_stream.to_string());
+    println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -784,7 +784,7 @@ fn create_dispatch_handler(
         //use bincode::{deserialize, serialize};
         //use bytes::Bytes;
         //use super::*;
-            pub async fn #dispatcher_function (this: std::sync::Arc<#struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
+            pub async fn #dispatcher_function (this: std::sync::Arc<dyn #struct_name>, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
             //pub async fn dispatch(this:&mut impl #struct_name, pkt: SomeIpPacket) -> Option<SomeIpPacket> {
                 //let mut this = this.lock().unwrap();
                 match pkt.header().event_or_method_id() {
