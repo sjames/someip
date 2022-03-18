@@ -42,7 +42,10 @@ pub use config::Configuration;
 pub use error::{FieldError, MethodError};
 pub use field::Field;
 pub use futures::future::BoxFuture;
-pub use server::{CreateServerRequestHandler, Server, ServerRequestHandler, ServiceIdentifier};
+pub use server::{
+    CreateServerRequestHandler, Server, ServerRequestHandler, ServerRequestHandlerEntry,
+    ServiceIdentifier,
+};
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::ConnectionMessage;
 use tasks::{ConnectionInfo, DispatcherCommand, DispatcherReply};
