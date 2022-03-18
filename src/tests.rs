@@ -11,7 +11,7 @@
     limitations under the License.
 */
 
-use crate::client::Client;
+use crate::{client::Client, server::ServerRequestHandlerEntry};
 use crate::server::Server;
 use crate::error::MethodError;
 
@@ -171,7 +171,7 @@ pub struct Field1 {
                 //let test_service : Box<dyn ServerRequestHandler + Send> = Box::new(EchoServerImpl::default());
                 let handler = EchoServerImpl::create_server_request_handler(Arc::new(EchoServerImpl::default()));
                 println!("Going to run server");
-                let res = Server::serve(at, handler[0].1.clone(), config, 47,1,0, tx).await;
+                let res = Server::serve(at, handler[0].handler.clone(), config, 47,1,0, tx).await;
                 println!("Server terminated");
                 if let Err(e) = res {
                     println!("Server error:{}", e);
@@ -268,10 +268,10 @@ pub struct Field1 {
 
                 println!("Going to run server");
 
-                let handlers : Vec<(u16, Arc<dyn ServerRequestHandler>, u8, u32)> = handler.into_iter().map(|(a,h)|{
-                    match a {
-                        "org.sabaton.Echoservice" => (45u16,h,1,0),
-                        _=> (45u16,h,1,0),
+                let handlers : Vec<(u16, Arc<dyn ServerRequestHandler>, u8, u32)> = handler.into_iter().map(|  ServerRequestHandlerEntry{name,instance_id,handler,..}|{
+                    match name {
+                        "org.sabaton.Echoservice" => (45u16,handler,1,0),
+                        _=> (45u16,handler,1,0),
                     }
                 }).collect();
                

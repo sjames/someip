@@ -44,11 +44,19 @@ impl Server {
     }
 }
 
+pub struct ServerRequestHandlerEntry {
+    pub name: &'static str,
+    pub instance_id: u16,
+    pub major_version: u8,
+    pub minor_version: u32,
+    pub handler: std::sync::Arc<dyn ServerRequestHandler>,
+}
+
 pub trait CreateServerRequestHandler {
     type Item;
     fn create_server_request_handler(
         server: std::sync::Arc<Self::Item>,
-    ) -> Vec<(&'static str, std::sync::Arc<dyn ServerRequestHandler>)>;
+    ) -> Vec<ServerRequestHandlerEntry>;
 }
 pub trait ServerRequestHandler: Send + Sync {
     /// Return a boxed future that can be used to dispatch this message

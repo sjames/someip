@@ -1090,10 +1090,9 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
                  /// The name to service ID mapping can be done outside of the generated code before
                  /// passing it into a server. Each service implemented on this struct will have
                  /// a separate dispatcher.
-                 fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> Vec<(&'static str,std::sync::Arc<dyn ServerRequestHandler>)> {
-                     vec![
-                         #( ( #dispatchers :: service_name(),std::sync::Arc::new(#dispatchers ::new (server.clone()))) ,)*
-                     ]
+                 fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> Vec<ServerRequestHandlerEntry> {
+                    vec![ #(  ServerRequestHandlerEntry { name: #dispatchers :: service_name(), instance_id: 0, major_version :0, minor_version:0, handler: std::sync::Arc::new(#dispatchers :: new (server.clone()))  } ,)*
+                    ]
                  }
              }
     };
