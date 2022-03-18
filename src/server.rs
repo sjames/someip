@@ -44,6 +44,12 @@ impl Server {
     }
 }
 
+pub trait CreateServerRequestHandler {
+    type Item;
+    fn create_server_request_handler(
+        server: std::sync::Arc<Self::Item>,
+    ) -> Vec<(&'static str, std::sync::Arc<dyn ServerRequestHandler>)>;
+}
 pub trait ServerRequestHandler: Send + Sync {
     /// Return a boxed future that can be used to dispatch this message
     fn get_handler(&self, message: SomeIpPacket) -> BoxFuture<'static, Option<SomeIpPacket>>;
