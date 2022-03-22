@@ -430,7 +430,7 @@ async fn tcp_client_dispatcher(
 
 #[async_trait]
 /// All proxies must implement this trait
-pub trait Proxy: ProxyConstruct {
+pub trait Proxy {
     fn get_dispatcher(&self) -> Client;
     async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error>;
     async fn run_uds(self, to: std::os::unix::net::UnixStream) -> Result<(), std::io::Error>;

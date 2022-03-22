@@ -76,7 +76,7 @@ pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     let proxy_tokens = create_proxy(&service, &service_trait);
     proxy_tokens.to_tokens(&mut token_stream);
 
-    println!("GENERATED:{}", &token_stream.to_string());
+    //println!("GENERATED:{}", &token_stream.to_string());
     token_stream.into()
 }
 
@@ -1083,7 +1083,7 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
             .collect();
 
         dispatchers.push(dispatcher_name);
-        println!("{:?}", dispatcher_name_stem);
+        //println!("{:?}", dispatcher_name_stem);
     }
     let service_impl = quote! {
              impl CreateServerRequestHandler for #impl_name {
