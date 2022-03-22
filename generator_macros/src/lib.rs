@@ -165,8 +165,9 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             }
         }
 
-        impl #struct_name {
-            pub fn new(service_id: u16, client_id: u16, config: std::sync::Arc<Configuration>) -> Self {
+        #[async_trait]
+        impl Proxy for #struct_name {
+            fn new(service_id: u16, client_id: u16, config: std::sync::Arc<Configuration>) -> Self {
                 let client = Client::new(client_id, config);
                 #struct_name {
                     #(#field_name :  Field::new(#field_type::default(), client.clone(), #field_id,service_id,) ,)*
@@ -178,7 +179,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             /// Create a proxy for this type connecting to a provided client dispatcher. You can
             /// attach multiple proxies to a single dispatcher. A client dispatcher is cheaply
             /// clonable.
-            pub fn new_with_dispatcher(service_id: u16, client_dispatcher : Client) -> Self {
+            fn new_with_dispatcher(service_id: u16, client_dispatcher : Client) -> Self {
                 #struct_name {
                     #(#field_name :  Field::new(#field_type::default(), client_dispatcher.clone(), #field_id, service_id ) ,)*
                     _client : client_dispatcher,
@@ -188,11 +189,11 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
 
             /// Get a copy of the client dispatcher. You can attach multiple
             /// clients to a dispatcher.
-            pub fn get_dispatcher(&self) -> Client {
+            fn get_dispatcher(&self) -> Client {
                 self._client.clone()
             }
 
-            pub async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error> {
+            async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error> {
                 let client = {
                     let client = self._client.clone();
                     client
@@ -200,7 +201,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                 client.run(to).await
             }
 
-            pub async fn run_uds(self, to: std::os::unix::net::UnixStream ) -> Result<(), std::io::Error> {
+            async fn run_uds(self, to: std::os::unix::net::UnixStream ) -> Result<(), std::io::Error> {
                 let client = {
                     let client = self._client.clone();
                     client

@@ -49,4 +49,4 @@ pub use server::{
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::ConnectionMessage;
 use tasks::{ConnectionInfo, DispatcherCommand, DispatcherReply};
-pub use {client::Client, client::ReplyData};
+pub use {client::Client, client::Proxy, client::ReplyData};

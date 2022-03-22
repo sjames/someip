@@ -24,6 +24,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
+use async_trait::async_trait;
 use futures::{Future, SinkExt, StreamExt};
 
 use tokio::{
@@ -425,6 +426,16 @@ async fn tcp_client_dispatcher(
         // connection dropped, reconnect after a delay
         tokio::time::sleep(config.reconnection_delay).await;
     }
+}
+
+#[async_trait]
+/// All proxies must implement this trait
+pub trait Proxy {
+    fn new(service_id: u16, client_id: u16, config: std::sync::Arc<Configuration>) -> Self;
+    fn new_with_dispatcher(service_id: u16, client_dispatcher: Client) -> Self;
+    fn get_dispatcher(&self) -> Client;
+    async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error>;
+    async fn run_uds(self, to: std::os::unix::net::UnixStream) -> Result<(), std::io::Error>;
 }
 
 #[cfg(test)]
