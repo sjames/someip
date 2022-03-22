@@ -165,8 +165,7 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
             }
         }
 
-        #[async_trait]
-        impl Proxy for #struct_name {
+        impl ProxyConstruct for #struct_name {
             fn new(service_id: u16, client_id: u16, config: std::sync::Arc<Configuration>) -> Self {
                 let client = Client::new(client_id, config);
                 #struct_name {
@@ -186,6 +185,11 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
                     service_id,
                 }
             }
+        }
+
+        #[async_trait]
+        impl Proxy for #struct_name {
+
 
             /// Get a copy of the client dispatcher. You can attach multiple
             /// clients to a dispatcher.

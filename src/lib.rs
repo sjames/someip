@@ -38,6 +38,7 @@ pub use bytes;
 pub use log;
 
 pub use call_properties::CallProperties;
+pub use client::{Client, Proxy, ProxyConstruct, ReplyData};
 pub use config::Configuration;
 pub use error::{FieldError, MethodError};
 pub use field::Field;
@@ -49,4 +50,3 @@ pub use server::{
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::ConnectionMessage;
 use tasks::{ConnectionInfo, DispatcherCommand, DispatcherReply};
-pub use {client::Client, client::Proxy, client::ReplyData};
