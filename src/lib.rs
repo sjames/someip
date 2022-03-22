@@ -44,7 +44,7 @@ pub use field::Field;
 pub use futures::future::BoxFuture;
 pub use server::{
     CreateServerRequestHandler, Server, ServerRequestHandler, ServerRequestHandlerEntry,
-    ServiceIdentifier,
+    ServiceIdentifier, ServiceInstance, ServiceVersion,
 };
 pub use someip_codec::{MessageType, ReturnCode, SomeIpHeader, SomeIpPacket};
 pub use tasks::ConnectionMessage;

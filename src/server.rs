@@ -67,6 +67,21 @@ pub trait ServiceIdentifier {
     fn service_name() -> &'static str;
 }
 
+pub trait ServiceVersion {
+    fn __major_version__() -> u8 {
+        0
+    }
+    fn __minor_version__() -> u32 {
+        0
+    }
+}
+
+pub trait ServiceInstance {
+    fn __instance_id__() -> u16 {
+        0
+    }
+}
+
 #[allow(clippy::type_complexity)]
 impl Server {
     /// Serve services on a UDS connection.

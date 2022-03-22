@@ -1091,7 +1091,7 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
                  /// passing it into a server. Each service implemented on this struct will have
                  /// a separate dispatcher.
                  fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> Vec<ServerRequestHandlerEntry> {
-                    vec![ #(  ServerRequestHandlerEntry { name: #dispatchers :: service_name(), instance_id: 0, major_version :0, minor_version:0, handler: std::sync::Arc::new(#dispatchers :: new (server.clone()))  } ,)*
+                    vec![ #(  ServerRequestHandlerEntry { name: #dispatchers :: service_name(), instance_id: #impl_name :: __instance_id__(), major_version :#impl_name :: __major_version__(), minor_version: #impl_name :: __minor_version__(), handler: std::sync::Arc::new(#dispatchers :: new (server.clone()))  } ,)*
                     ]
                  }
              }

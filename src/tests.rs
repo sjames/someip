@@ -12,7 +12,7 @@
 */
 
 use crate::{client::Client, server::ServerRequestHandlerEntry};
-use crate::server::Server;
+use crate::server::{Server, ServiceVersion, ServiceInstance};
 use crate::error::MethodError;
 
 use super::*;
@@ -68,7 +68,7 @@ pub struct Field1 {
     }
 
     #[service(
-        name("org.sabaton.Echoservice"),
+        name("org.sabaton.Echoservice"), 
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
         events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32), 
         method_ids([2]echo_string, [3]no_reply),
@@ -89,6 +89,8 @@ pub struct Field1 {
     }
 
   
+    impl ServiceVersion for EchoServerImpl {}
+    impl ServiceInstance for EchoServerImpl {}
     
     #[async_trait]
     impl EchoServer for EchoServerImpl {
