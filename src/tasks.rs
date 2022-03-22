@@ -97,25 +97,12 @@ pub async fn tcp_server_task(
 ) -> Result<(), io::Error> {
     loop {
         log::debug!("Waiting for TCP connection from client");
-        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), at).await {
+
+        let notify_tcp_bind = notify_tcp_tx.clone();
+
+        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), at, notify_tcp_bind).await {
             Ok((tcp_stream, addr)) => {
                 // received a connection.
-                // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
-                // and send the port information to the client so that it can be used for Service Discovery.
-                if let Ok(local_addr) = tcp_stream.get_ref().local_addr() {
-                    if let Err(_e) = notify_tcp_tx
-                        .send(ConnectionInfo::TcpServerSocket(local_addr))
-                        .await
-                    {
-                        log::debug!("Unable to send ServerSocket Message");
-                        return Err(std::io::Error::new(
-                            io::ErrorKind::ConnectionAborted,
-                            "Unable to send serversocket notification",
-                        ));
-                    }
-                } else {
-                    log::error!("Unable to retrieve local address")
-                }
 
                 // clone needed to move into the connection task below.  We can have multiple clients
                 // connecting to the server

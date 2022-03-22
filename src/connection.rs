@@ -12,6 +12,7 @@
 */
 
 pub use crate::someip_codec::SomeIPCodec;
+use crate::tasks::ConnectionInfo;
 
 use std::{
     io,
@@ -21,6 +22,7 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket, UnixStream};
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Framed;
 use tokio_util::udp::UdpFramed;
+use tokio::sync::mpsc::{Sender};
 
 pub type TcpSomeIpConnection = Framed<TcpStream, SomeIPCodec>;
 pub type UdpSomeIpConnection = UdpFramed<SomeIPCodec>;
@@ -36,8 +38,26 @@ impl SomeIPCodec {
     pub async fn listen(
         self,
         addr: &SocketAddr,
+        notify_tcp_tx: Sender<ConnectionInfo>,
     ) -> Result<(TcpSomeIpConnection, SocketAddr), io::Error> {
         let listener = TcpListener::bind(addr).await?;
+
+        // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
+        // and send the port information to the client so that it can be used for Service Discovery.
+        if let Ok(local_addr) = listener.local_addr() {
+            if let Err(_e) = notify_tcp_tx
+                .send(ConnectionInfo::TcpServerSocket(local_addr))
+                .await
+            {
+                log::debug!("Unable to send ServerSocket Message");
+                return Err(std::io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Unable to send serversocket notification",
+                ));
+            }
+        } else {
+            log::error!("Unable to retrieve local address")
+        }
 
         match listener.accept().await {
             Ok((socket, addr)) => {

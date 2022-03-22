@@ -169,7 +169,7 @@ pub struct Field1 {
                                 assert_eq!(s,at);
                             },
                             ConnectionInfo::TcpServerSocket(s) => {
-                                println!("UDP Local socket {:?}", s);
+                                println!("TCP Local socket {:?}", s);
                                 assert_eq!(s,at);
                             },
                         }
