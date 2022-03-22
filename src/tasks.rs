@@ -82,6 +82,8 @@ pub enum ConnectionMessage {
 pub enum ConnectionInfo {
     NewTcpConnection((Sender<ConnectionMessage>, SocketAddr)),
     NewUdpConnection((Sender<ConnectionMessage>, SocketAddr)),
+    // The socketaddress of the server
+    ServerSocket(SocketAddr),
     ConnectionDropped(IpAddr),
 }
 
@@ -97,6 +99,22 @@ pub async fn tcp_server_task(
         match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), at).await {
             Ok((tcp_stream, addr)) => {
                 // received a connection.
+                // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
+                // and send the port information to the client so that it can be used for Service Discovery.
+                if let Ok(local_addr) = tcp_stream.get_ref().local_addr() {
+                    if let Err(_e) = notify_tcp_tx
+                        .send(ConnectionInfo::ServerSocket(local_addr))
+                        .await
+                    {
+                        log::debug!("Unable to send ServerSocket Message");
+                        return Err(std::io::Error::new(
+                            io::ErrorKind::ConnectionAborted,
+                            "Unable to send serversocket notification",
+                        ));
+                    }
+                } else {
+                    log::error!("Unable to retrieve local address")
+                }
 
                 // clone needed to move into the connection task below.  We can have multiple clients
                 // connecting to the server
@@ -247,7 +265,26 @@ pub async fn udp_task(
 ) -> Result<(), io::Error> {
     let udp_addr = at;
 
-    if let Ok(udp_stream) = SomeIPCodec::create_udp_stream(&udp_addr, None, None).await {
+    if let Ok(udp_stream) = SomeIPCodec::create_udp_stream(udp_addr, None, None).await {
+        // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
+        // and send the port information to the client so that it can be used for Service Discovery.
+        if let Ok(local_addr) = udp_stream.get_ref().local_addr() {
+            if let Err(_e) = notify_ucp_tx
+                .send(ConnectionInfo::ServerSocket(local_addr))
+                .await
+            {
+                log::debug!("Unable to send ServerSocket Message");
+                return Err(std::io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Unable to send serversocket notification",
+                ));
+            } else {
+                log::error!("Sent local address {:?}", local_addr);
+            }
+        } else {
+            log::error!("Unable to retrieve local address")
+        }
+
         let (mut tx, mut rx) = udp_stream.split();
         let (dispatch_tx, mut dispatch_reply) = channel::<DispatcherReply>(1);
 

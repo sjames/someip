@@ -164,6 +164,10 @@ pub struct Field1 {
                             ConnectionInfo::NewUdpConnection((sender, i)) => {
                                 println!("Udp connection established");
                             }
+                            ConnectionInfo::ServerSocket(s) => {
+                                println!("Local socket {:?}", s);
+                                assert_eq!(s,at);
+                            },
                         }
                     }
                 }

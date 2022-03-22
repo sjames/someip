@@ -524,6 +524,9 @@ mod tests {
                                     )))
                                     .await;
                             }
+                            ConnectionInfo::ServerSocket(a) => {
+                                assert_eq!(a, to);
+                            }
                         }
                     }
                 }
