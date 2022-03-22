@@ -83,7 +83,8 @@ pub enum ConnectionInfo {
     NewTcpConnection((Sender<ConnectionMessage>, SocketAddr)),
     NewUdpConnection((Sender<ConnectionMessage>, SocketAddr)),
     // The socketaddress of the server
-    ServerSocket(SocketAddr),
+    UdpServerSocket(SocketAddr),
+    TcpServerSocket(SocketAddr),
     ConnectionDropped(IpAddr),
 }
 
@@ -103,7 +104,7 @@ pub async fn tcp_server_task(
                 // and send the port information to the client so that it can be used for Service Discovery.
                 if let Ok(local_addr) = tcp_stream.get_ref().local_addr() {
                     if let Err(_e) = notify_tcp_tx
-                        .send(ConnectionInfo::ServerSocket(local_addr))
+                        .send(ConnectionInfo::TcpServerSocket(local_addr))
                         .await
                     {
                         log::debug!("Unable to send ServerSocket Message");
@@ -270,7 +271,7 @@ pub async fn udp_task(
         // and send the port information to the client so that it can be used for Service Discovery.
         if let Ok(local_addr) = udp_stream.get_ref().local_addr() {
             if let Err(_e) = notify_ucp_tx
-                .send(ConnectionInfo::ServerSocket(local_addr))
+                .send(ConnectionInfo::UdpServerSocket(local_addr))
                 .await
             {
                 log::debug!("Unable to send ServerSocket Message");

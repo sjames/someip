@@ -538,7 +538,10 @@ mod tests {
                                     )))
                                     .await;
                             }
-                            ConnectionInfo::ServerSocket(a) => {
+                            ConnectionInfo::UdpServerSocket(a) => {
+                                assert_eq!(a, to);
+                            }
+                            ConnectionInfo::TcpServerSocket(a) => {
                                 assert_eq!(a, to);
                             }
                         }
