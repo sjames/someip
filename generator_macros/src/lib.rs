@@ -131,7 +131,7 @@ fn create_method_ids(service: Service, item_trait: &ItemTrait) -> Service {
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
     let fields = get_fields(service);
-    let service_name = &service.name.service_name;
+    let service_name = &service.name.service_name();
 
     let mut field_name = Vec::new();
     for field in &fields {
@@ -674,7 +674,7 @@ fn create_dispatcher_struct(
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
     let dispatcher_function =
         format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
-    let service_name = &service.name.service_name;
+    let service_name = &service.name.service_name();
 
     let ts = quote! {
         pub struct #dispatcher_name (std::sync::Arc<dyn #struct_name >);
@@ -917,7 +917,9 @@ colon: Option<Token![:]>,
 #[derive(Parse)]
 struct Service {
     name: ServiceName,
-    comma: Option<Token![,]>,
+    _commav: Option<Token![,]>,
+    version: ServiceVersion,
+    _comma: Option<Token![,]>,
     //#[parse_if(comma.is_some())]
     #[call(Punctuated::<ServiceEntry, Token![,]>::parse_terminated)]
     entries: Punctuated<ServiceEntry, Token![,]>,
@@ -984,6 +986,11 @@ impl Service {
     //fn validate(&self) -> Option<>
 }
 
+mod kw {
+    syn::custom_keyword!(version);
+    syn::custom_keyword!(name);
+}
+
 #[derive(Parse, Clone)]
 struct Id {
     id: Option<syn::LitInt>,
@@ -1036,11 +1043,59 @@ struct Method {
 
 #[derive(Parse)]
 struct ServiceName {
-    ident: Ident, // must be name
+    _ident: kw::name, // must be name
     #[paren]
-    arg_paren: token::Paren,
-    #[inside(arg_paren)]
-    service_name: syn::LitStr,
+    _arg_paren: token::Paren,
+    #[inside(_arg_paren)]
+    _service_name: syn::LitStr,
+}
+
+impl ServiceName {
+    pub fn service_name(&self) -> &syn::LitStr {
+        &self._service_name
+    }
+}
+#[derive(Parse)]
+struct ServiceVersion {
+    _ident: kw::version,
+    #[paren]
+    _arg_paren: token::Paren,
+    #[inside(_arg_paren)]
+    version: Version,
+}
+
+impl ServiceVersion {
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+}
+
+struct Version {
+    major_version: u8,
+    minor_version: u32,
+}
+
+impl Parse for Version {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let lit: LitInt = input.parse()?;
+        let major_version = lit.base10_parse::<u8>()?;
+        let _comma: syn::token::Comma = input.parse()?;
+        let lit: LitInt = input.parse()?;
+        let minor_version = lit.base10_parse::<u32>()?;
+        Ok(Version {
+            major_version,
+            minor_version,
+        })
+    }
+}
+
+impl Version {
+    pub fn minor(&self) -> u32 {
+        self.minor_version
+    }
+    pub fn major(&self) -> u8 {
+        self.major_version
+    }
 }
 
 #[derive(Parse)]
