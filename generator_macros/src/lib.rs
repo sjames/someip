@@ -131,7 +131,9 @@ fn create_method_ids(service: Service, item_trait: &ItemTrait) -> Service {
 fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
     let struct_name = format_ident!("{}Proxy", item_trait.ident);
     let fields = get_fields(service);
-    let service_name = &service.name.service_name();
+    let service_name = service.name.service_name();
+    let service_version_major = service.version.version().major();
+    let service_version_minor = service.version.version().minor();
 
     let mut field_name = Vec::new();
     for field in &fields {
@@ -162,6 +164,15 @@ fn create_proxy(service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 
         impl ServiceIdentifier for #struct_name {
             fn service_name() -> &'static str {
                 #service_name
+            }
+        }
+
+        impl ServiceVersion for #struct_name {
+            fn __major_version__() -> u8 {
+                #service_version_major
+            }
+            fn __minor_version__() -> u32 {
+                #service_version_minor
             }
         }
 
@@ -674,7 +685,9 @@ fn create_dispatcher_struct(
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
     let dispatcher_function =
         format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
-    let service_name = &service.name.service_name();
+    let service_name = service.name.service_name();
+    let service_version_major = service.version.version().major();
+    let service_version_minor = service.version.version().minor();
 
     let ts = quote! {
         pub struct #dispatcher_name (std::sync::Arc<dyn #struct_name >);
@@ -694,6 +707,15 @@ fn create_dispatcher_struct(
         impl ServiceIdentifier for #dispatcher_name {
             fn service_name() -> &'static str {
                 #service_name
+            }
+        }
+
+        impl ServiceVersion for #dispatcher_name {
+            fn __major_version__() -> u8 {
+                #service_version_major
+            }
+            fn __minor_version__() -> u32 {
+                #service_version_minor
             }
         }
 
@@ -1151,7 +1173,7 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
                  /// passing it into a server. Each service implemented on this struct will have
                  /// a separate dispatcher.
                  fn create_server_request_handler(server : std::sync::Arc<#impl_name>) -> Vec<ServerRequestHandlerEntry> {
-                    vec![ #(  ServerRequestHandlerEntry { name: #dispatchers :: service_name(), instance_id: #impl_name :: __instance_id__(), major_version :#impl_name :: __major_version__(), minor_version: #impl_name :: __minor_version__(), handler: std::sync::Arc::new(#dispatchers :: new (server.clone()))  } ,)*
+                    vec![ #(  ServerRequestHandlerEntry { name: #dispatchers :: service_name(), instance_id: #impl_name :: __instance_id__(), major_version :#dispatchers :: __major_version__(), minor_version: #dispatchers :: __minor_version__(), handler: std::sync::Arc::new(#dispatchers :: new (server.clone()))  } ,)*
                     ]
                  }
              }

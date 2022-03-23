@@ -90,7 +90,6 @@ pub struct Field1 {
     }
 
   
-    impl ServiceVersion for EchoServerImpl {}
     impl ServiceInstance for EchoServerImpl {}
     
     #[async_trait]
