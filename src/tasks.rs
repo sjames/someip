@@ -19,7 +19,7 @@ use std::{
     io,
     net::{IpAddr, SocketAddr},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{net::TcpListener, sync::mpsc::Sender};
 use tokio::{net::UnixStream, sync::mpsc::channel};
 
 pub enum DispatcherCommand {
@@ -95,12 +95,28 @@ pub async fn tcp_server_task(
     service_id: u16,
     notify_tcp_tx: Sender<ConnectionInfo>,
 ) -> Result<(), io::Error> {
+    let listener = TcpListener::bind(at).await?;
+    // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
+    // and send the port information to the client so that it can be used for Service Discovery.
+    if let Ok(local_addr) = listener.local_addr() {
+        if let Err(_e) = notify_tcp_tx
+            .send(ConnectionInfo::TcpServerSocket(local_addr))
+            .await
+        {
+            log::debug!("Unable to send ServerSocket Message");
+            return Err(std::io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                "Unable to send serversocket notification",
+            ));
+        }
+    } else {
+        log::error!("Unable to retrieve local address")
+    }
+
     loop {
         log::debug!("Waiting for TCP connection from client");
 
-        let notify_tcp_bind = notify_tcp_tx.clone();
-
-        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), at, notify_tcp_bind).await {
+        match SomeIPCodec::listen(SomeIPCodec::new(config.max_packet_size_tcp), &listener).await {
             Ok((tcp_stream, addr)) => {
                 // received a connection.
 
@@ -157,12 +173,10 @@ pub async fn tcp_server_task(
                                         break;
                                     } else {
                                         // wait for reply from dispatcher
-                                        if let Some(r) = dispatch_reply.recv().await {
-                                            if let DispatcherReply::ResponsePacket(Some(packet)) = r {
-                                                if let Err(_e) = tx.send(packet).await {
-                                                    log::error!("Error sending response over TCP");
-                                                    break;
-                                                }
+                                        if let Some(DispatcherReply::ResponsePacket(Some(packet))) = dispatch_reply.recv().await {
+                                            if let Err(_e) = tx.send(packet).await {
+                                                log::error!("Error sending response over TCP");
+                                                break;
                                             }
                                         }
                                     }

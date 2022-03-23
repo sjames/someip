@@ -18,11 +18,11 @@ use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
 };
-use tokio::net::{TcpListener, TcpStream, UdpSocket, UnixStream};
+use tokio::net::{TcpListener, TcpSocket, TcpStream, UdpSocket, UnixStream};
+use tokio::sync::mpsc::Sender;
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Framed;
 use tokio_util::udp::UdpFramed;
-use tokio::sync::mpsc::{Sender};
 
 pub type TcpSomeIpConnection = Framed<TcpStream, SomeIPCodec>;
 pub type UdpSomeIpConnection = UdpFramed<SomeIPCodec>;
@@ -37,36 +37,16 @@ impl SomeIPCodec {
 
     pub async fn listen(
         self,
-        addr: &SocketAddr,
-        notify_tcp_tx: Sender<ConnectionInfo>,
+        listener: &TcpListener,
     ) -> Result<(TcpSomeIpConnection, SocketAddr), io::Error> {
-        let listener = TcpListener::bind(addr).await?;
-
-        // if the port was set to zero in udp_addr, the OS will pick a free port.  We read back the socket address
-        // and send the port information to the client so that it can be used for Service Discovery.
-        if let Ok(local_addr) = listener.local_addr() {
-            if let Err(_e) = notify_tcp_tx
-                .send(ConnectionInfo::TcpServerSocket(local_addr))
-                .await
-            {
-                log::debug!("Unable to send ServerSocket Message");
-                return Err(std::io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    "Unable to send serversocket notification",
-                ));
-            }
-        } else {
-            log::error!("Unable to retrieve local address")
-        }
-
         match listener.accept().await {
             Ok((socket, addr)) => {
                 let peer_addr = socket.peer_addr().unwrap();
-                log::debug!("Connection accepted {:?} from {}", addr, peer_addr);
+                log::debug!("Connection accepted from {}", peer_addr);
                 Ok((self.framed(socket), peer_addr))
             }
             Err(e) => {
-                log::error!("Error accepting {:?}", addr);
+                log::error!("Error accepting");
                 Err(e)
             }
         }
@@ -192,7 +172,9 @@ mod tests {
 
             let addr = "127.0.0.1:8094".parse::<SocketAddr>().unwrap();
 
-            let (stream, _addr) = SomeIPCodec::default().listen(&addr).await.unwrap();
+            let listener = TcpListener::bind(addr).await.unwrap();
+
+            let (stream, _addr) = SomeIPCodec::default().listen(&listener).await.unwrap();
             let (_sink, mut ins) = stream.split();
             println!("Connected!");
 
