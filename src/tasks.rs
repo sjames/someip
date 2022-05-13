@@ -201,6 +201,7 @@ pub async fn tcp_server_task(
                                      }
                                 }
                             }
+                            else => break,
 
                         }
                     }
