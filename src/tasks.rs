@@ -19,8 +19,8 @@ use std::{
     io,
     net::{IpAddr, SocketAddr},
 };
+use tokio::sync::mpsc::channel;
 use tokio::{net::TcpListener, sync::mpsc::Sender};
-use tokio::{net::UnixStream, sync::mpsc::channel};
 
 pub enum DispatcherCommand {
     Terminate,

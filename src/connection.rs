@@ -12,14 +12,13 @@
 */
 
 pub use crate::someip_codec::SomeIPCodec;
-use crate::tasks::ConnectionInfo;
 
 use std::{
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
 };
-use tokio::net::{TcpListener, TcpSocket, TcpStream, UdpSocket, UnixStream};
-use tokio::sync::mpsc::Sender;
+use tokio::net::{TcpListener, TcpStream, UdpSocket, UnixStream};
+
 use tokio_util::codec::Decoder;
 use tokio_util::codec::Framed;
 use tokio_util::udp::UdpFramed;
@@ -40,7 +39,7 @@ impl SomeIPCodec {
         listener: &TcpListener,
     ) -> Result<(TcpSomeIpConnection, SocketAddr), io::Error> {
         match listener.accept().await {
-            Ok((socket, addr)) => {
+            Ok((socket, _addr)) => {
                 let peer_addr = socket.peer_addr().unwrap();
                 log::debug!("Connection accepted from {}", peer_addr);
                 Ok((self.framed(socket), peer_addr))
@@ -88,11 +87,11 @@ impl SomeIPCodec {
     }
 
     pub fn create_uds_stream(
-        mut uds: std::os::unix::net::UnixStream,
+        uds: std::os::unix::net::UnixStream,
     ) -> Result<UdsSomeIpConnection, io::Error> {
         //let uds = unsafe UnixStream::from_raw_fd(uds);
         uds.set_nonblocking(true)?;
-        let mut tokio_uds = unsafe { tokio::net::UnixStream::from_std(uds)? };
+        let tokio_uds = tokio::net::UnixStream::from_std(uds)?;
         Ok(Framed::new(tokio_uds, SomeIPCodec::new(1400)))
     }
 }
@@ -113,7 +112,7 @@ mod tests {
     fn test_uds() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let _r = rt.block_on(async {
+        rt.block_on(async {
             let (tx, rx) = std::os::unix::net::UnixStream::pair().unwrap();
             let mut stream = SomeIPCodec::create_uds_stream(rx).unwrap();
 
@@ -150,7 +149,7 @@ mod tests {
     fn test_loopback() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let _result = rt.block_on(async {
+        rt.block_on(async {
             rt.spawn(async {
                 println!("Initiating connection");
                 let addr = "127.0.0.1:8094".parse::<SocketAddr>().unwrap();
@@ -205,7 +204,7 @@ mod tests {
     fn test_udp() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        let _result = rt.block_on(async {
+        rt.block_on(async {
             rt.spawn(async {
                 let addr = "0.0.0.0:4712".parse::<std::net::SocketAddr>().unwrap();
 
