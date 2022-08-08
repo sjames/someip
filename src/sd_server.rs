@@ -94,7 +94,7 @@ async fn timer(mut timer_cmd_rx: Receiver<TimerCommand>, timer_tx: Sender<TimerE
 }
 
 pub async fn sd_server_task(
-    at: &SocketAddr,
+    _at: &SocketAddr,
     config: &Configuration,
     mut event_rx: Receiver<SDServerMessage>,
 ) -> Result<(), io::Error> {
@@ -163,7 +163,7 @@ pub async fn sd_server_task(
                                     }),
                                     Box::new(move || {
                                         println!("Send Offer");
-                                        if let Err(e) = tx.blocking_send(SDServerInternalMessage::OfferService(service_id)) {
+                                        if let Err(_e) = tx.blocking_send(SDServerInternalMessage::OfferService(service_id)) {
                                             panic!("cannot send offserservice message");
                                         }
                                     }),

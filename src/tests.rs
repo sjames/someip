@@ -22,10 +22,10 @@ use tokio::runtime::Runtime;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use someip_derive::*;
-use std::io;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time;
+
 use std::time::Duration;
 use thiserror::Error;
 
@@ -69,7 +69,7 @@ pub enum EchoError {
         name("org.sabaton.Echoservice"), 
         version(0,0),
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
-        events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32),
+        events([1 ;10]_value1:Event1, [2;10]_value2:String, [3;10]_value3: u32),
         method_ids([2]echo_string, [3]no_reply),
         method_ids([5]echo_struct)
     )]
@@ -121,7 +121,7 @@ impl EchoServer for EchoServerImpl {
         todo!()
     }
 
-    fn no_reply(&self, value: Field1) {}
+    fn no_reply(&self, _value: Field1) {}
 
     fn echo_u64(&self, value: u64) -> Result<u64, EchoError> {
         Ok(value)
@@ -158,11 +158,11 @@ pub fn echo_tests() {
             loop {
                 if let Some(msg) = rx.recv().await {
                     match msg {
-                        ConnectionInfo::NewTcpConnection((sender, i)) => {
+                        ConnectionInfo::NewTcpConnection((_sender, i)) => {
                             println!("New connection from {}", i);
                         }
                         ConnectionInfo::ConnectionDropped(_i) => {}
-                        ConnectionInfo::NewUdpConnection((sender, i)) => {
+                        ConnectionInfo::NewUdpConnection((_sender, _i)) => {
                             println!("Udp connection established");
                         }
                         ConnectionInfo::UdpServerSocket(s) => {
@@ -202,7 +202,7 @@ pub fn echo_tests() {
         let prop = CallProperties::default();
 
         let task = tokio::spawn(async move {
-            for i in 1..25 {
+            for _i in 1..25 {
                 let res = proxy.echo_string(String::from("Hello World"), &prop).await;
                 assert_eq!(res.unwrap(), String::from("Hello World"));
 
@@ -218,10 +218,10 @@ pub fn echo_tests() {
                 //assert_eq!(res, Err(MethodError::ConnectionError));
 
                 match res {
-                    Ok(r) => {
+                    Ok(_r) => {
                         panic!("This should have failed");
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
 
                 let res = proxy.no_reply(Field1::default(), &prop).await;
@@ -262,7 +262,7 @@ pub fn echo_tests() {
 #[test]
 pub fn echo_uds_tests() {
     let rt = Runtime::new().unwrap();
-    let config = Configuration::default();
+    let _config = Configuration::default();
 
     rt.block_on(async {
         let (server, client) = std::os::unix::net::UnixStream::pair().unwrap();
@@ -278,7 +278,7 @@ pub fn echo_uds_tests() {
                 .map(
                     |ServerRequestHandlerEntry {
                          name,
-                         instance_id,
+                         instance_id: _,
                          handler,
                          ..
                      }| {
@@ -308,7 +308,7 @@ pub fn echo_uds_tests() {
         let prop = CallProperties::default();
 
         let task = tokio::spawn(async move {
-            for i in 1..25 {
+            for _i in 1..25 {
                 let res = proxy.echo_string(String::from("Hello World"), &prop).await;
                 assert_eq!(res.unwrap(), String::from("Hello World"));
 
@@ -323,10 +323,10 @@ pub fn echo_uds_tests() {
                     .await;
 
                 match res {
-                    Ok(r) => {
+                    Ok(_r) => {
                         panic!("This should have failed");
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
 
                 let res = proxy.no_reply(Field1::default(), &prop).await;

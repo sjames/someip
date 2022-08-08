@@ -234,7 +234,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::NotReady(d)
                 }
             }
-            (SDServerStateMachine::NotReady(d), SMEvent::Timeout(_, _)) => {
+            (SDServerStateMachine::NotReady(_d), SMEvent::Timeout(_, _)) => {
                 panic!("This should not happen")
             }
             // don't do anything if not ready
