@@ -69,7 +69,7 @@ pub enum EchoError {
         name("org.sabaton.Echoservice"), 
         version(0,0),
         fields([1]value1:Field1,[2]value2:String, [3]value3: u32),
-        events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32), 
+        events([1 ;10]value1:Event1, [2;10]value2:String, [3;10]value3: u32),
         method_ids([2]echo_string, [3]no_reply),
         method_ids([5]echo_struct)
     )]
