@@ -234,7 +234,7 @@ pub fn echo_tests() {
                 assert_eq!(42u64, res.unwrap());
 
                 proxy.value1.set(Field1::default()).await.unwrap();
-                let _val = proxy.value1.refresh().await.unwrap();
+                proxy.value1.refresh().await.unwrap();
                 println!("Val: {:?}", proxy.value1.get_cached());
 
                 let field = Field1 {
@@ -339,7 +339,7 @@ pub fn echo_uds_tests() {
                 assert_eq!(42u64, res.unwrap());
 
                 proxy.value1.set(Field1::default()).await.unwrap();
-                let _val = proxy.value1.refresh().await.unwrap();
+                proxy.value1.refresh().await.unwrap();
                 //println!("Val: {:?}", proxy.value1.get_cached());
 
                 let field = Field1 {
