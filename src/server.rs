@@ -13,7 +13,6 @@
 
 // A SOME/IP server
 
-use async_trait::async_trait;
 use futures::future::BoxFuture;
 use std::{io, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc::channel;
@@ -24,13 +23,8 @@ use crate::someip_codec::SomeIpPacket;
 use crate::tasks::{tcp_server_task, udp_task, uds_task};
 use crate::{ConnectionInfo, DispatcherCommand, DispatcherReply};
 
+#[derive(Default)]
 pub struct Server {}
-
-impl Default for Server {
-    fn default() -> Self {
-        Server {}
-    }
-}
 
 impl Server {
     pub fn new() -> Self {
@@ -105,13 +99,10 @@ impl Server {
         while let Some(command) = dx_rx.recv().await {
             let (response, tx) = match command {
                 DispatcherCommand::DispatchUds(packet, tx) => {
-                    if let Some(handler) = handlers.iter().find_map(|e| {
-                        if packet.header().service_id() == e.0 {
-                            Some(e)
-                        } else {
-                            None
-                        }
-                    }) {
+                    if let Some(handler) = handlers
+                        .iter()
+                        .find(|e| packet.header().service_id() == e.0)
+                    {
                         (Self::server_dispatch(handler.1.clone(), packet).await, tx)
                     } else {
                         panic!("{}", "unhandled service id");
@@ -143,8 +134,8 @@ impl Server {
         handler: Arc<dyn ServerRequestHandler>,
         config: Arc<Configuration>,
         service_id: u16,
-        major_version: u8,
-        minor_version: u32,
+        _major_version: u8,
+        _minor_version: u32,
         notify_tcp_tx: Sender<ConnectionInfo>,
     ) -> Result<(), io::Error> {
         let (dx_tx, mut dx_rx) = channel::<DispatcherCommand>(10);
@@ -242,6 +233,7 @@ mod tests {
     use super::*;
     use crate::ConnectionMessage;
     use crate::{connection::SomeIPCodec, someip_codec::SomeIpPacket};
+    use async_trait::async_trait;
     use bytes::{Bytes, BytesMut};
     use futures::SinkExt;
     use someip_parse::{MessageType, SomeIpHeader};
@@ -278,7 +270,7 @@ mod tests {
 
         let at = "127.0.0.1:8091".parse::<SocketAddr>().unwrap();
         println!("Test");
-        let _result = rt.block_on(async {
+        rt.block_on(async {
             let (tx, mut rx) = Server::create_notify_channel(1);
 
             tokio::spawn(async move {
@@ -289,7 +281,7 @@ mod tests {
                                 println!("New connection from {}", i);
                             }
                             ConnectionInfo::ConnectionDropped(_i) => {}
-                            ConnectionInfo::NewUdpConnection((sender, i)) => {
+                            ConnectionInfo::NewUdpConnection((sender, _i)) => {
                                 //test notification packet
                                 let header = SomeIpHeader {
                                     message_type: MessageType::Notification,

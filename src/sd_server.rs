@@ -16,16 +16,13 @@ use crate::{
     config::Configuration,
     connection::SomeIPCodec,
     sd_messages::*,
-    sd_server_sm::{SDServerStateMachine, SDServerStateMachineContainer, SMEvent, State},
+    sd_server_sm::{SDServerStateMachineContainer, SMEvent, State},
     someip_codec::SomeIpPacket,
 };
-use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
-use someip_parse::MessageType;
 use std::{
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_util::time::{delay_queue::Key, DelayQueue};
@@ -97,11 +94,11 @@ async fn timer(mut timer_cmd_rx: Receiver<TimerCommand>, timer_tx: Sender<TimerE
 }
 
 pub async fn sd_server_task(
-    at: &SocketAddr,
+    _at: &SocketAddr,
     config: &Configuration,
     mut event_rx: Receiver<SDServerMessage>,
 ) -> Result<(), io::Error> {
-    let mut udp_addr = SocketAddr::new(config.sd_multicast_ip, config.sd_port);
+    let udp_addr = SocketAddr::new(config.sd_multicast_ip, config.sd_port);
 
     //let mut services = Arc::new(Mutex::new(Vec::<(u16, SDServerStateMachine)>::new()));
     let mut services = Vec::<(u16, SDServerStateMachineContainer, Service)>::new();
@@ -112,7 +109,7 @@ pub async fn sd_server_task(
     };
 
     let ipv6_multicasts = match config.sd_multicast_ip {
-        IpAddr::V4(addr) => None,
+        IpAddr::V4(_addr) => None,
         IpAddr::V6(addr) => Some(vec![(addr, 0)]),
     };
 
@@ -166,7 +163,7 @@ pub async fn sd_server_task(
                                     }),
                                     Box::new(move || {
                                         println!("Send Offer");
-                                        if let Err(e) = tx.blocking_send(SDServerInternalMessage::OfferService(service_id)) {
+                                        if let Err(_e) = tx.blocking_send(SDServerInternalMessage::OfferService(service_id)) {
                                             panic!("cannot send offserservice message");
                                         }
                                     }),

@@ -20,7 +20,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use someip_parse::{MessageType, SomeIpHeader};
 
 use crate::error::PropertyError;
-use crate::{Client, ReplyData, SomeIpPacket};
+use crate::{Client, SomeIpPacket};
 #[derive(Clone)]
 pub struct Field<T> {
     val: Arc<RwLock<Option<T>>>,
@@ -33,7 +33,7 @@ impl<T> Field<T>
 where
     T: Default + Serialize + DeserializeOwned,
 {
-    pub fn new(val: T, client: Client, field_id: u16, service_id: u16) -> Self {
+    pub fn new(_val: T, client: Client, field_id: u16, service_id: u16) -> Self {
         Self {
             val: Arc::new(RwLock::new(None)),
             client,

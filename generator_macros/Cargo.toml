@@ -1,5 +1,8 @@
 [package]
+authors = ["Sojan James <sojan.james@gmail.com>"]
+description = "SOME/IP derive macros for traits"
 edition = "2018"
+license-file = "LICENSE"
 name = "someip_derive"
 version = "0.1.0"
 

@@ -27,11 +27,7 @@ use std::{
 use async_trait::async_trait;
 use futures::{Future, SinkExt, StreamExt};
 
-use tokio::{
-    net::{TcpStream, UnixStream},
-    sync::mpsc::{channel, Receiver, Sender},
-};
-use tokio_util::codec::Framed;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::someip_codec::{MessageType, SomeIpPacket};
 use crate::{config::Configuration, someip_codec::SomeIPCodec};
@@ -126,7 +122,7 @@ impl Client {
     }
 
     pub async fn run_uds(&self, on: std::os::unix::net::UnixStream) -> Result<(), io::Error> {
-        let (config, dispatch_rx, pending_calls) = {
+        let (_config, dispatch_rx, pending_calls) = {
             let inner = self.inner();
             //let client = this.read().unwrap();
             let dispatch_rx = inner.dispatch_rx.lock().unwrap().take().unwrap();
@@ -430,7 +426,7 @@ async fn tcp_client_dispatcher(
 
 #[async_trait]
 /// All proxies must implement this trait
-pub trait Proxy {
+pub trait Proxy: Sync + Send {
     fn get_dispatcher(&self) -> Client;
     async fn run(self, to: std::net::SocketAddr) -> Result<(), std::io::Error>;
     async fn run_uds(self, to: std::os::unix::net::UnixStream) -> Result<(), std::io::Error>;
@@ -513,7 +509,7 @@ mod tests {
         }
 
         let server_config = config;
-        let _result = rt.block_on(async {
+        rt.block_on(async {
             tokio::spawn(async move {
                 loop {
                     if let Some(msg) = rx.recv().await {
@@ -562,9 +558,9 @@ mod tests {
             impl ServerRequestHandler for Handler {
                 fn get_handler(
                     &self,
-                    message: SomeIpPacket,
+                    _message: SomeIpPacket,
                 ) -> BoxFuture<'static, Option<SomeIpPacket>> {
-                    let handle = self.inner.clone();
+                    let _handle = self.inner.clone();
                     todo!()
                     //Box::pin(async move { dispatch(handle, message).await })
                 }

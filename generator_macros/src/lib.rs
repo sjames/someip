@@ -16,10 +16,10 @@ use proc_macro::{self, TokenStream};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use std::str::FromStr;
-use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
+use syn::parse::{Parse, ParseStream, Result};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Expr, Signature, *};
+use syn::{*};
 
 #[proc_macro_attribute]
 pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -89,7 +89,7 @@ fn allocate_next_valid_method_id(
 ) -> (u32, Service) {
     if get_method_ids(&service)
         .iter()
-        .find(|(id, name)| *id == start)
+        .find(|(id, _name)| *id == start)
         .is_some()
     {
         // id exists, try next one
@@ -115,7 +115,7 @@ fn create_method_ids(service: Service, item_trait: &ItemTrait) -> Service {
         if let TraitItem::Method(m) = item {
             if get_method_ids(&current_service)
                 .iter()
-                .find(|(id, name)| name == &m.sig.ident)
+                .find(|(_id, name)| name == &m.sig.ident)
                 .is_none()
             {
                 let (next_id, service) =
@@ -366,7 +366,7 @@ fn get_client_method_by_ident(id: u16, ident: &Ident, item_trait: &syn::ItemTrai
         quote! {MessageType::RequestNoReturn}
     };
 
-    let timeout_ms: u64 = 1000;
+    let _timeout_ms: u64 = 1000;
 
     let call_and_reply_tokens = if need_reply {
         let (success_type, failure_type) = maybe_return_types.unwrap();
@@ -599,7 +599,7 @@ fn create_field_getter_fn(field_name: &str, item_trait: &syn::ItemTrait) -> Toke
     let method = find_method_by_name(&field_get_name, item_trait)
         .expect(&format!("Expecting method {}", field_name));
     let method_name = &method.sig.ident;
-    let params: Vec<syn::Pat> = method
+    let _params: Vec<syn::Pat> = method
         .sig
         .inputs
         .iter()
@@ -671,8 +671,8 @@ fn get_ids(service: &Service, id_type: &str) -> Vec<(u32, Ident)> {
     ids
 }
 
-fn dispatch_method_call(id: u32, service: &Service, item_trait: &syn::ItemTrait) -> TokenStream2 {
-    let field = service.get_method_field(id).unwrap();
+fn dispatch_method_call(id: u32, service: &Service, _item_trait: &syn::ItemTrait) -> TokenStream2 {
+    let _field = service.get_method_field(id).unwrap();
 
     todo!()
 }
@@ -680,7 +680,7 @@ fn dispatch_method_call(id: u32, service: &Service, item_trait: &syn::ItemTrait)
 fn create_dispatcher_struct(
     struct_name: &Ident,
     service: &Service,
-    item_trait: &syn::ItemTrait,
+    _item_trait: &syn::ItemTrait,
 ) -> TokenStream2 {
     let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
     let dispatcher_function =
@@ -740,7 +740,7 @@ fn create_dispatch_handler(
     let method_id_name = get_method_ids(service);
     let method_ids: Vec<TokenStream2> = method_id_name
         .iter()
-        .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i)).unwrap())
+        .map(|(i, _ident)| TokenStream2::from_str(&format!("{}", i)).unwrap())
         .collect();
 
     let mut deserialize_call = Vec::new();
@@ -749,7 +749,7 @@ fn create_dispatch_handler(
         deserialize_call.push(deser_tokens);
     }
 
-    let async_fn_if_needed = if trait_is_async(item_trait) {
+    let _async_fn_if_needed = if trait_is_async(item_trait) {
         quote! {async}
     } else {
         quote! {}
@@ -758,7 +758,7 @@ fn create_dispatch_handler(
     let field_id_names = get_field_ids(service);
     let field_ids: Vec<TokenStream2> = field_id_names
         .iter()
-        .map(|(i, ident)| TokenStream2::from_str(&format!("{}", i + 0x8000)).unwrap())
+        .map(|(i, _ident)| TokenStream2::from_str(&format!("{}", i + 0x8000)).unwrap())
         .collect();
 
     let mut event_getters = Vec::new();
@@ -797,8 +797,8 @@ fn create_dispatch_handler(
         method_returns.push(method_reply_tokens);
     }
 
-    let module_name = format_ident!("{}_dispatcher", struct_name);
-    let dispatcher_name = format_ident!("{}Dispatcher", struct_name);
+    let _module_name = format_ident!("{}_dispatcher", struct_name);
+    let _dispatcher_name = format_ident!("{}Dispatcher", struct_name);
     let dispatcher_function =
         format_ident!("{}_dispatcher_", struct_name.to_string().to_lowercase());
     //let method_reply_tokens = if method_has_return_type()
@@ -902,7 +902,7 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
             for input in &m.sig.inputs {
                 match input {
                     FnArg::Typed(typed) => input_args.push(typed.clone()),
-                    FnArg::Receiver(r) => {}
+                    FnArg::Receiver(_r) => {}
                 }
             }
 
@@ -920,7 +920,7 @@ fn create_internal_marshalling_structs(item_trait: &syn::ItemTrait) -> Vec<syn::
             /// Now the output parameters
             if let syn::ReturnType::Type(_, ty) = &m.sig.output {
                 match ty.as_ref() {
-                    syn::Type::Path(p) => {
+                    syn::Type::Path(_p) => {
                         //println!("Found type path");
                     }
                     _ => {}
@@ -1138,8 +1138,8 @@ struct ServiceList {
 
 /// A marker to apply on Service implementations
 #[proc_macro_attribute]
-pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
-    let mut service_struct = parse_macro_input!(item as syn::ItemStruct);
+pub fn service_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let service_struct = parse_macro_input!(item as syn::ItemStruct);
     let services = parse_macro_input!(attr as ServiceList);
     let impl_name = &service_struct.ident;
 
@@ -1148,11 +1148,11 @@ pub fn service_impl(attr: TokenStream, mut item: TokenStream) -> TokenStream {
     let mut dispatchers = Vec::new();
 
     for service in services.services {
-        let dispatcher_module_name =
+        let _dispatcher_module_name =
             format_ident!("{}_dispatcher", service.segments.last().unwrap().ident);
         let dispatcher_name = format_ident!("{}Dispatcher", service.segments.last().unwrap().ident);
 
-        let dispatcher_name_stem: Vec<&Ident> = service
+        let _dispatcher_name_stem: Vec<&Ident> = service
             .segments
             .iter()
             .take(service.segments.len() - 1)

@@ -691,16 +691,9 @@ impl ServiceEntry {
     }
 }
 
+#[derive(Default)]
 pub struct EventGroupEntry {
     data: BitArray<[u8; 16], Msb0>,
-}
-
-impl Default for EventGroupEntry {
-    fn default() -> Self {
-        EventGroupEntry {
-            data: BitArray::default(),
-        }
-    }
 }
 
 impl EventGroupEntry {

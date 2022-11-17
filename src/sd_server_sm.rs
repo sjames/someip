@@ -209,7 +209,7 @@ impl From<Data<RepetitionPhase>> for Data<MainPhase> {
 }
 
 impl State for SDServerStateMachine {
-    fn next(mut self, event: SMEvent) -> Self
+    fn next(self, event: SMEvent) -> Self
     where
         Self: Sized,
     {
@@ -234,7 +234,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::NotReady(d)
                 }
             }
-            (SDServerStateMachine::NotReady(d), SMEvent::Timeout(_, _)) => {
+            (SDServerStateMachine::NotReady(_d), SMEvent::Timeout(_, _)) => {
                 panic!("This should not happen")
             }
             // don't do anything if not ready
@@ -269,7 +269,7 @@ impl State for SDServerStateMachine {
                 }
             }
             //Timeout in Initial wait phase. Timer id should be 0
-            (SDServerStateMachine::InitialWaitPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
+            (SDServerStateMachine::InitialWaitPhase(mut d), SMEvent::Timeout(tid, _service_id)) => {
                 if tid == 0 {
                     //todo: SendOffer service
                     (d.inner.set_timer)(1, d.inner.repetitions_base_delay);
@@ -306,7 +306,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::RepetitionPhase(d)
                 }
             }
-            (SDServerStateMachine::RepetitionPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
+            (SDServerStateMachine::RepetitionPhase(mut d), SMEvent::Timeout(tid, _service_id)) => {
                 (d.inner.send_offer)();
                 d.state.run += 1;
                 assert!(tid == 1);
@@ -340,7 +340,7 @@ impl State for SDServerStateMachine {
                     SDServerStateMachine::MainPhase(d)
                 }
             }
-            (SDServerStateMachine::MainPhase(mut d), SMEvent::Timeout(tid, service_id)) => {
+            (SDServerStateMachine::MainPhase(mut d), SMEvent::Timeout(tid, _service_id)) => {
                 assert!(tid == 2);
                 (d.inner.send_offer)();
                 (d.inner.set_timer)(2, d.inner.cyclic_announce_delay);
@@ -382,7 +382,7 @@ mod test {
             Box::new(|timer_id, duration| {
                 println!("Setting timer {} for {:?}", timer_id, duration);
             }),
-            Box::new(|timer_id, service_id| {
+            Box::new(|timer_id, _service_id| {
                 println!("Resetting timer {} ", timer_id);
             }),
             Box::new(|| {
