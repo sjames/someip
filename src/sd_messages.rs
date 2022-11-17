@@ -38,30 +38,30 @@ impl SDMessage {
     }
 
     pub fn is_reboot(&self) -> bool {
-        let flags: &BitSlice<Msb0, u32> = self.flags_reserved.view_bits();
+        let flags: &BitSlice<u32, Msb0> = self.flags_reserved.view_bits();
         flags[0]
     }
 
     pub fn set_reboot(&mut self, reboot: bool) {
-        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        let flags: &mut BitSlice<u32, Msb0> = self.flags_reserved.view_bits_mut();
         flags.set(0, reboot);
     }
 
     pub fn is_unicast(&self) -> bool {
-        let flags: &BitSlice<Msb0, u32> = self.flags_reserved.view_bits();
+        let flags: &BitSlice<u32, Msb0> = self.flags_reserved.view_bits();
         flags[1]
     }
     pub fn set_unicast(&mut self, unicast: bool) {
-        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        let flags: &mut BitSlice<u32, Msb0> = self.flags_reserved.view_bits_mut();
         flags.set(1, unicast);
     }
     pub fn is_exp_initial_data_control(&self) -> bool {
-        let flags: BitArray<Msb0, u32> = BitArray::from(self.flags_reserved);
+        let flags: BitArray<u32, Msb0> = BitArray::from(self.flags_reserved);
         flags[2]
     }
 
     pub fn set_exp_initial_data_control(&mut self, initial_data_ctrl: bool) {
-        let flags: &mut BitSlice<Msb0, u32> = self.flags_reserved.view_bits_mut();
+        let flags: &mut BitSlice<u32, Msb0> = self.flags_reserved.view_bits_mut();
         flags.set(2, initial_data_ctrl);
     }
 
@@ -570,7 +570,7 @@ impl Into<u8> for ServiceEntryType {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ServiceEntry {
-    data: BitArray<Msb0, [u8; 16]>,
+    data: BitArray<[u8; 16], Msb0>,
 }
 
 impl Default for ServiceEntry {
@@ -686,13 +686,13 @@ impl ServiceEntry {
         self.data[96..].load()
     }
 
-    pub fn as_buffer(&self) -> &[u8; 16] {
-        self.data.as_buffer()
+    pub fn as_buffer(&self) -> &[u8] {
+        self.data.as_raw_slice()
     }
 }
 
 pub struct EventGroupEntry {
-    data: BitArray<Msb0, [u8; 16]>,
+    data: BitArray<[u8; 16], Msb0>,
 }
 
 impl Default for EventGroupEntry {
