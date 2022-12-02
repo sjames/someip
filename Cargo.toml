@@ -22,6 +22,7 @@ someip_parse = "0.2.0"
 thiserror = "1.0.24"
 tokio = {version = "1.20", features = ["full"]}
 tokio-util = {version = "0.6.5", features = ["codec", "net", "time"]}
+serde_someip = { path = "serde_someip"}
 
 [dev-dependencies]
 async-std = "1.9.0"
