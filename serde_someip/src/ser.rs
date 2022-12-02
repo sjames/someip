@@ -25,16 +25,12 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     type SerializeStructVariant = Self;
 
     // Here we go with the simple methods. The following 12 methods receive one
-    // of the primitive types of the data model and map it to the writer by appending
+    // of the primitive types of the data model and map it to the output by appending
     // into the output string.
     fn serialize_bool(self, v: bool) -> Result<()> {
         todo!()
     }
 
-    // JSON does not distinguish between different sizes of integers, so all
-    // signed integers will be serialized the same and all unsigned integers
-    // will be serialized the same. Other formats, especially compact binary
-    // formats, may need independent logic for the different sizes.
     fn serialize_i8(self, v: i8) -> Result<()> {
         todo!()
     }
@@ -382,5 +378,27 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
 
     fn end(self) -> Result<()> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_struct() {
+        #[derive(Serialize)]
+        struct Test {
+            int: u32,
+            seq: Vec<&'static str>,
+        }
+
+        let test = Test {
+            int: 1,
+            seq: vec!["a", "b"],
+        };
+        let expected = vec![];
+        assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 }
