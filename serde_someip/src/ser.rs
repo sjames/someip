@@ -251,7 +251,6 @@ impl<'a> ser::SerializeSeq for &'a mut Serializer {
 
     // Close the sequence.
     fn end(self) -> Result<()> {
-        println!("serializing element-end");
         Ok(())
     }
 }
@@ -400,6 +399,8 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
 #[cfg(test)]
 mod tests {
 
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -473,9 +474,23 @@ mod tests {
     }
 
     #[test]
+    fn test_nested_seq(){
+        let test:Vec<Vec<u8>> = vec![vec![1,3],vec![3,4],vec![5,6]];
+        let expected:Vec<u8> = vec![1,3,3,4,5,6];
+        assert_eq!(to_bytes(&test).unwrap(), expected);
+    }
+
+    #[test]
     fn test_tuple(){
         let test:(u8,u8,u8) = (1,2,3);
         let expected:Vec<u8> = vec![1,2,3];
+        assert_eq!(to_bytes(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_nested_tuple(){
+        let test:((u8,u8),(u8,u8))=((1,2),(2,3));
+        let expected:Vec<u8> = vec![1,2,2,3];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 
@@ -486,18 +501,30 @@ mod tests {
         struct Test {
             int: u8,
             bool:bool,
+            float:f32,
+            char:char,
             str:String,
+            tup:(u8,u8),
             seq: Vec<&'static str>,
+            seq2: Vec<u8>,
+            seq3: Vec<Vec<u8>>,
+            
         }
 
         let test = Test {
             int: 98,
             bool: false,
+            float: 342.1274,
+            char: 'c',
             str:String::from("test"),
+            tup:(1,3),
             seq: vec!["a", "b"],
+            seq2: vec![12,32],
+            seq3:vec![vec![12,34],vec![23,43]]
+            
         };
         
-        let expected = vec![98,0,116, 101, 115, 116,97,98];
+        let expected = vec![98,0,79,16,171,67,99,116, 101, 115, 116,1,3,97,98,12,32,12,34,23,43];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 }
