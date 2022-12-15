@@ -141,7 +141,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // methods) refer exclusively to the "externally tagged" enum
     // representation.
     //
-    // Serialize this to JSON in externally tagged form as `{ NAME: VALUE }`.
+    
     fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
@@ -158,10 +158,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // Now we get to the serialization of compound types.
     //
     // The start of the sequence, each value, and the end are three separate
-    // method calls. This one is responsible only for serializing the start,
-    // which in JSON is `[`.
-    //
-    // The length of the sequence may or may not be known ahead of time. This
+    // method calls.The length of the sequence may or may not be known ahead of time. This
     // doesn't make a difference in JSON because the length is not represented
     // explicitly in the serialized form. Some serializers may only be able to
     // support sequences for which the length is known up front.
@@ -169,15 +166,14 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         Ok(self)
     }
 
-    // Tuples look just like sequences in JSON. Some formats may be able to
-    // represent tuples more efficiently by omitting the length, since tuple
+    // Some formats may be able to represent tuples more efficiently by omitting the length, since tuple
     // means that the corresponding `Deserialize implementation will know the
     // length without needing to look at the serialized data.
     fn serialize_tuple(self, len: usize) -> Result<(Self::SerializeTuple)> {
         Ok(self)
     }
 
-    // Tuple structs look just like sequences in JSON.
+    // Tuple structs look just like sequences 
     fn serialize_tuple_struct(
         self,
         _name: &'static str,
@@ -328,14 +324,6 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
     type Ok = ();
     type Error = Error;
 
-    // The Serde data model allows map keys to be any serializable type. JSON
-    // only allows string keys so the implementation below will produce invalid
-    // JSON if the key serializes as something other than a string.
-    //
-    // A real JSON serializer would need to validate that map keys are strings.
-    // This can be done by using a different Serializer to serialize the key
-    // (instead of `&mut **self`) and having that other serializer only
-    // implement `serialize_str` and return an error on any other data type.
     fn serialize_key<T>(&mut self, key: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
@@ -525,6 +513,22 @@ mod tests {
         };
         
         let expected = vec![98,0,79,16,171,67,99,116, 101, 115, 116,1,3,97,98,12,32,12,34,23,43];
+        assert_eq!(to_bytes(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_struct_array(){
+        #[derive(Serialize)]
+        struct Test {
+            seq: [u8;4],
+        }
+
+        let test = Test {
+            seq:[12,2,43,9]
+            
+        };
+        
+        let expected = vec![12,2,43,9];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 }
