@@ -559,7 +559,7 @@ mod tests {
         // buffer.push(191);
         // buffer.extend(str.as_bytes());
         // println!("{:?}",to_bytes(&str).unwrap());
-        assert_eq!(to_bytes(&str).unwrap(),[0,12]);
+        assert_eq!(to_bytes(&str).unwrap(),[3, 0, 0, 0, 239, 187, 191, 0]);
     }
 
 }
