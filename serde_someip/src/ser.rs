@@ -88,7 +88,8 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         self.output.push(res);
          Ok(())
     }
-
+    
+    //The UTF-8 representation of the BOM is the  byte sequence 239,187,191. 
     fn serialize_str(self, v: &str) -> Result<()> {
         let len: u32 = (v.len() + 3).try_into().unwrap();
         self.output.extend(len.to_ne_bytes());
@@ -547,47 +548,18 @@ mod tests {
     //negative test cases
     #[test]
     fn test_string_null_termination() {
-        let str: String = String::from("Hi");
-        let mut buffer: Vec<u8> = Vec::new();
-        let len: u32 = (str.len() + 3).try_into().unwrap();
-        buffer.extend(len.to_ne_bytes());
-        buffer.push(239);
-        buffer.push(187);
-        buffer.push(191);
-        buffer.extend(str.as_bytes());
-        assert_ne!(to_bytes(&str).unwrap(), buffer);
+        let str: String = String::from("");
+        
+        //let str = "";
+        // let mut buffer: Vec<u8> = Vec::new();
+        // let len: u32 = (str.len() + 3).try_into().unwrap();
+        // buffer.extend(len.to_ne_bytes());
+        // buffer.push(239);
+        // buffer.push(187);
+        // buffer.push(191);
+        // buffer.extend(str.as_bytes());
+        // println!("{:?}",to_bytes(&str).unwrap());
+        assert_eq!(to_bytes(&str).unwrap(),[0,12]);
     }
 
-    #[test]
-    fn test_string_len_without_bom() {
-        let str: String = String::from("Hi");
-        let mut buffer: Vec<u8> = Vec::new();
-        let len: u32 = (str.len()).try_into().unwrap();
-        buffer.extend(len.to_ne_bytes());
-        buffer.push(239);
-        buffer.push(191);
-        buffer.push(187);
-        buffer.extend(str.as_bytes());
-        buffer.push(0);
-        assert_ne!(to_bytes(&str).unwrap(), buffer);
-    }
-
-    #[test]
-    fn test_string_without_bom() {
-        let str: String = String::from("Hi");
-        let mut buffer: Vec<u8> = Vec::new();
-        let len: u32 = (str.len()).try_into().unwrap();
-        buffer.extend(len.to_ne_bytes());
-        buffer.extend(str.as_bytes());
-        buffer.push(0);
-        assert_ne!(to_bytes(&str).unwrap(), buffer);
-    }
-
-    #[test]
-    fn test_string_without_bom_and_len() {
-        let str: String = String::from("Hi");
-        let mut buffer: Vec<u8> = Vec::new();
-        buffer.extend(str.as_bytes());
-        assert_ne!(to_bytes(&str).unwrap(), buffer);
-    }
 }
