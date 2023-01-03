@@ -66,7 +66,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     fn serialize_u32(self, v: u32) -> Result<()> {
         self.output.extend(v.to_ne_bytes());
-         Ok(())
+        Ok(())
     }
 
     fn serialize_u64(self, _v: u64) -> Result<()> {
@@ -86,10 +86,10 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     fn serialize_char(self, v: char) -> Result<()> {
         let res = v as u8;
         self.output.push(res);
-         Ok(())
+        Ok(())
     }
-    
-    //The UTF-8 representation of the BOM is the  byte sequence 239,187,191. 
+
+    //The UTF-8 representation of the BOM is the  byte sequence 239,187,191.
     fn serialize_str(self, v: &str) -> Result<()> {
         let len: u32 = (v.len() + 3).try_into().unwrap();
         self.output.extend(len.to_ne_bytes());
@@ -174,6 +174,13 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     // method calls.The length of the sequence may or may not be known ahead of time.Some serializers may only be able to
     // support sequences for which the length is known up front.
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        match _len {
+            Some(n) => {
+                let len: u32 = n as u32;
+                self.output.extend(len.to_ne_bytes());
+            }
+            _ => (),
+        }
         Ok(self)
     }
 
@@ -468,16 +475,25 @@ mod tests {
     }
 
     #[test]
-    fn test_seq() {
-        let test: Vec<u8> = vec![1, 2];
+    fn test_fixed_array() {
+        let test: [u8; 2] = [1, 2];
         let expected = vec![1, 2];
+        assert_eq!(to_bytes(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_dynamic_array() {
+        let test: Vec<u8> = vec![1; 2];
+        let expected = vec![2, 0, 0, 0, 1, 1];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 
     #[test]
     fn test_nested_seq() {
         let test: Vec<Vec<u8>> = vec![vec![1, 3], vec![3, 4], vec![5, 6]];
-        let expected: Vec<u8> = vec![1, 3, 3, 4, 5, 6];
+        let expected: Vec<u8> = vec![
+            3, 0, 0, 0, 2, 0, 0, 0, 1, 3, 2, 0, 0, 0, 3, 4, 2, 0, 0, 0, 5, 6,
+        ];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 
@@ -523,9 +539,9 @@ mod tests {
         };
 
         let expected = vec![
-            98, 0, 79, 16, 171, 67, 99, 7, 0, 0, 0, 239, 187, 191, 116, 101, 115, 116, 0, 1, 3, 4,
-            0, 0, 0, 239, 187, 191, 97, 0, 4, 0, 0, 0, 239, 187, 191, 98, 0, 12, 32, 12, 34, 23,
-            43,
+            98, 0, 79, 16, 171, 67, 99, 7, 0, 0, 0, 239, 187, 191, 116, 101, 115, 116, 0, 1, 3, 2,
+            0, 0, 0, 4, 0, 0, 0, 239, 187, 191, 97, 0, 4, 0, 0, 0, 239, 187, 191, 98, 0, 2, 0, 0,
+            0, 12, 32, 2, 0, 0, 0, 2, 0, 0, 0, 12, 34, 2, 0, 0, 0, 23, 43,
         ];
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
@@ -545,21 +561,9 @@ mod tests {
         assert_eq!(to_bytes(&test).unwrap(), expected);
     }
 
-    //negative test cases
     #[test]
-    fn test_string_null_termination() {
+    fn test_string_null() {
         let str: String = String::from("");
-        
-        //let str = "";
-        // let mut buffer: Vec<u8> = Vec::new();
-        // let len: u32 = (str.len() + 3).try_into().unwrap();
-        // buffer.extend(len.to_ne_bytes());
-        // buffer.push(239);
-        // buffer.push(187);
-        // buffer.push(191);
-        // buffer.extend(str.as_bytes());
-        // println!("{:?}",to_bytes(&str).unwrap());
-        assert_eq!(to_bytes(&str).unwrap(),[3, 0, 0, 0, 239, 187, 191, 0]);
+        assert_eq!(to_bytes(&str).unwrap(), [3, 0, 0, 0, 239, 187, 191, 0]);
     }
-
 }
