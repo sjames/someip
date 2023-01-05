@@ -6,14 +6,11 @@ pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
     input: &'de [u8],
-    //input: & 'de Vec<u8>,
 }
 
 impl<'de> Deserializer<'de> {
     // By convention, `Deserializer` constructors are named like `from_xyz`.
-    // That way basic use cases are satisfied by something like
-    // `serde_json::from_str(...)` while advanced use cases that require a
-    // deserializer can make one with `serde_json::Deserializer::from_str(...)`.
+
     pub fn from_bytes(input: &'de [u8]) -> Self {
         Deserializer { input }
     }
@@ -40,13 +37,7 @@ where
 impl<'de> Deserializer<'de> {
     // Look at the first character in the input without consuming it.
 
-    // Parse the JSON identifier `true` or `false`.
-
     // Parse a group of decimal digits as an unsigned integer of type T.
-    //
-    // This implementation is a bit too lenient, for example `001` is not
-    // allowed in JSON. Also the various arithmetic operations can overflow and
-    // panic or return bogus data. But it is good enough for example code!
 
     fn parse_bool(&mut self) -> Result<bool> {
         //todo!()
@@ -200,31 +191,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         Err(Error::Syntax)
     }
 
-    // Uses the `parse_bool` parsing function defined above to read the JSON
-    // identifier `true` or `false` from the input.
-    //
-    // Parsing refers to looking at the input and deciding that it contains the
-    // JSON value `true` or `false`.
-    //
-    // Deserialization refers to mapping that JSON value into Serde's data
-    // model by invoking one of the `Visitor` methods. In the case of JSON and
-    // bool that mapping is straightforward so the distinction may seem silly,
-    // but in other cases Deserializers sometimes perform non-obvious mappings.
-    // For example the TOML format has a Datetime type and Serde's data model
-    // does not. In the `toml` crate, a Datetime in the input is deserialized by
-    // mapping it to a Serde data model "struct" type with a special name and a
-    // single field containing the Datetime represented as a string.
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         visitor.visit_bool(self.parse_bool()?)
-
-        //Ok(string)
     }
 
-    // The `parse_https://github.com/bincode-org/bincode/blob/trunk/src/de/impls.rssigned` function is generic over the integer type `T` so here
-    // it is invoked with `T=i8`. The next 8 methods are similar.
     fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -286,16 +259,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         _visitor.visit_f32(self.parse_float_f32()?)
-        //unimplemented!()
     }
 
-    // Float parsing is stupidly hard.
     fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         _visitor.visit_f64(self.parse_float_f64()?)
-        //unimplemented!()
     }
 
     // The `Serializer` implementation on the previous page serialized chars as
@@ -305,7 +275,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // Parse a string, check that it is one character, call `visit_char`.
-        //unimplemented!()
+
         _visitor.visit_char(self.parse_char()?)
     }
 
@@ -325,8 +295,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_str(visitor)
     }
 
-    // The `Serializer` implementation on the previous page serialized byte
-    // arrays as JSON arrays of bytes. Handle that representation here.
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -341,23 +309,17 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         Err(Error::Syntax)
     }
 
-    // An absent optional is represented as the JSON `null` and a present
-    // optional is represented as just the contained value.
-    //
     // As commented in `Serializer` implementation, this is a lossy
-    // representation. For example the values `Some(())` and `None` both
-    // serialize as just `null`. Unfortunately this is typically what people
-    // expect when working with JSON. Other formats are encouraged to behave
-    // more intelligently if possible.
+    // representation.
+
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         if self.input.starts_with(b"null") {
-            //self.input = &self.input["null".len()..];
             visitor.visit_none()
         } else {
-            visitor.visit_some(self)
+            Err(Error::Syntax)
         }
     }
 
@@ -367,10 +329,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         if self.input.starts_with(b"null") {
-            //self.input = &self.input["null".len()..];
             visitor.visit_unit()
         } else {
-            Err(Error::ExpectedNull)
+            Err(Error::Syntax)
         }
     }
 
@@ -407,24 +368,21 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
             let t = i32::from_ne_bytes(m.try_into().unwrap());
 
             if (t == n.len().try_into().unwrap()) | (t < n.len().try_into().unwrap()) {
-                let value = _visitor.visit_seq(CommaSeparatedVec::new(self))?;
+                let value = _visitor.visit_seq(SomeIpVec::new(self))?;
 
                 Ok(value)
             } else {
-                let value = _visitor.visit_seq(CommaSeparated::new(self))?;
+                let value = _visitor.visit_seq(SomeIp::new(self))?;
 
                 Ok(value)
             }
         } else {
-            let value = _visitor.visit_seq(CommaSeparated::new(self))?;
+            let value = _visitor.visit_seq(SomeIp::new(self))?;
 
             Ok(value)
         }
     }
 
-    // Tuples look just like sequences in JSON. Some formats may be able to
-    // represent tuples more efficiently.
-    //
     // As indicated by the length parameter, the `Deserialize` implementation
     // for a tuple in the Serde data model is required to know the length of the
     // tuple before even looking at the input data.
@@ -435,7 +393,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_seq(visitor)
     }
 
-    // Tuple structs look just like sequences in JSON.
     fn deserialize_tuple_struct<V>(
         self,
         _name: &'static str,
@@ -448,9 +405,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_seq(visitor)
     }
 
-    // Much like `deserialize_seq` but calls the visitors `visit_map` method
-    // with a `MapAccess` implementation, rather than the visitor's `visit_seq`
-    // method with a `SeqAccess` implementation.
     fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -459,9 +413,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
 
         self.deserialize_seq(_visitor)
     }
-
-    // Structs look just like maps in JSON.
-    //
     // Notice the `fields` parameter - a "struct" in the Serde data model means
     // that the `Deserialize` implementation is required to know what the fields
     // are before even looking at the input data. Any key-value pairing in which
@@ -492,9 +443,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     // An identifier in Serde is the type that identifies a field of a struct or
-    // the variant of an enum. In JSON, struct fields and enum variants are
-    // represented as strings. In other formats they may be represented as
-    // numeric indices.
+    // the variant of an enum.
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -513,6 +462,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     // Some formats are not able to implement this at all. Formats that can
     // implement `deserialize_any` and `deserialize_ignored_any` are known as
     // self-describing.
+
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -521,23 +471,20 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 }
 
-// In order to handle commas correctly when deserializing a JSON array or map,
-// we need to track whether we are on the first element or past the first
-// element.
-struct CommaSeparated<'a, 'de: 'a> {
+struct SomeIp<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
     first: bool,
 }
 
-impl<'a, 'de> CommaSeparated<'a, 'de> {
+impl<'a, 'de> SomeIp<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
-        CommaSeparated { de, first: true }
+        SomeIp { de, first: true }
     }
 }
 
 // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
 // through elements of the sequence.
-impl<'de, 'a> SeqAccess<'de> for CommaSeparated<'a, 'de> {
+impl<'de, 'a> SeqAccess<'de> for SomeIp<'a, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>>
@@ -545,22 +492,22 @@ impl<'de, 'a> SeqAccess<'de> for CommaSeparated<'a, 'de> {
         T: DeserializeSeed<'de>,
     {
         // Check if there are no more elements.
-        _seed.deserialize(&mut *self.de).map(Some) //todo!()
+        _seed.deserialize(&mut *self.de).map(Some)
     }
 }
 
-struct CommaSeparatedVec<'a, 'de: 'a> {
+struct SomeIpVec<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
     first: bool,
     len: usize,
 }
-impl<'a, 'de> CommaSeparatedVec<'a, 'de> {
+impl<'a, 'de> SomeIpVec<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
         let (int_bytes, rest) = de.input.split_at(std::mem::size_of::<i32>());
         de.input = rest;
         let len = i32::from_ne_bytes(int_bytes.try_into().unwrap());
 
-        CommaSeparatedVec {
+        SomeIpVec {
             de,
             first: true,
             len: len.try_into().unwrap(),
@@ -570,7 +517,7 @@ impl<'a, 'de> CommaSeparatedVec<'a, 'de> {
 
 // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
 // through elements of the sequence.
-impl<'de, 'a> SeqAccess<'de> for CommaSeparatedVec<'a, 'de> {
+impl<'de, 'a> SeqAccess<'de> for SomeIpVec<'a, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>>
@@ -594,7 +541,7 @@ impl<'de, 'a> SeqAccess<'de> for CommaSeparatedVec<'a, 'de> {
 
 // `MapAccess` is provided to the `Visitor` to give it the ability to iterate
 // through entries of the map.
-impl<'de, 'a> MapAccess<'de> for CommaSeparatedVec<'a, 'de> {
+impl<'de, 'a> MapAccess<'de> for SomeIp<'a, 'de> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, _seed: K) -> Result<Option<K::Value>>
@@ -659,31 +606,25 @@ impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
         Err(Error::Syntax)
     }
 
-    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
-    // deserialize the value here.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: DeserializeSeed<'de>,
     {
-        seed.deserialize(self.de)
+        Err(Error::Syntax)
     }
 
-    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
-    // deserialize the sequence of data here.
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_seq(self.de, visitor)
+        Err(Error::Syntax)
     }
 
-    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
-    // deserialize the inner map here.
     fn struct_variant<V>(self, _fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_map(self.de, visitor)
+        Err(Error::Syntax)
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
