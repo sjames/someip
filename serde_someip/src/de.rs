@@ -6,17 +6,12 @@ pub struct Deserializer<'de> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
     input: &'de [u8],
-    //input: & 'de Vec<u8>,
 }
 
 impl<'de> Deserializer<'de> {
     // By convention, `Deserializer` constructors are named like `from_xyz`.
-    // That way basic use cases are satisfied by something like
-    // `serde_json::from_str(...)` while advanced use cases that require a
-    // deserializer can make one with `serde_json::Deserializer::from_str(...)`.
-    pub fn from_bytes(input: &'de [u8]) -> Self {
-        println!("from_bytes from deserializer");
 
+    pub fn from_bytes(input: &'de [u8]) -> Self {
         Deserializer { input }
     }
 }
@@ -30,8 +25,6 @@ pub fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T>
 where
     T: Deserialize<'a>,
 {
-    println!("from bytes");
-
     let mut deserializer = Deserializer::from_bytes(s);
     let t: T = T::deserialize(&mut deserializer)?;
 
@@ -44,24 +37,10 @@ where
 impl<'de> Deserializer<'de> {
     // Look at the first character in the input without consuming it.
 
-    // Parse the JSON identifier `true` or `false`.
-
     // Parse a group of decimal digits as an unsigned integer of type T.
-    //
-    // This implementation is a bit too lenient, for example `001` is not
-    // allowed in JSON. Also the various arithmetic operations can overflow and
-    // panic or return bogus data. But it is good enough for example code!
 
     fn parse_bool(&mut self) -> Result<bool> {
         //todo!()
-
-        //let mut deserializer = Deserializer::from_bytes(self.input);
-        //let t: T = T::deserialize(&mut deserializer)?;
-        // match u8::deserialize(&mut deserializer)? {
-        //     0 => Ok(false),
-        //     1 => Ok(true),
-        //     _x => Err(Error::ExpectedBoolean),
-        // }
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<u8>());
         self.input = rest;
         let t = u8::from_ne_bytes(int_bytes.try_into().unwrap());
@@ -70,52 +49,35 @@ impl<'de> Deserializer<'de> {
         } else if t == 1 {
             Ok(true)
         } else {
-            //Ok(false)
             Err(Error::ExpectedBoolean)
         }
-        //println!("{:?}",int_bytes);
     }
 
     fn parse_unsigned_u8(&mut self) -> Result<u8> {
-        //let mid=std::mem::size_of::<u8>();
-
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<u8>());
-
         self.input = rest;
-        println!("{:?}", rest);
         let t = u8::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
-
-    //let t=self.input.to_vec().pop().unwrap();
-
-    //Ok(t)
 
     fn parse_unsigned_u16(&mut self) -> Result<u16> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<u16>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = u16::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_unsigned_u32(&mut self) -> Result<u32> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<u32>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = u32::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_unsigned_u64(&mut self) -> Result<u64> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<u64>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = u64::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
@@ -124,54 +86,42 @@ impl<'de> Deserializer<'de> {
     fn parse_signed_i8(&mut self) -> Result<i8> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<i8>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = i8::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_signed_i16(&mut self) -> Result<i16> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<i16>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = i16::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_signed_i32(&mut self) -> Result<i32> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<i32>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = i32::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_signed_i64(&mut self) -> Result<i64> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<i64>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = i64::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_float_f32(&mut self) -> Result<f32> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<f32>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = f32::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
     fn parse_float_f64(&mut self) -> Result<f64> {
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<f64>());
         self.input = rest;
-        println!("{:?}", rest);
         let t = f64::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
         Ok(t)
     }
 
@@ -180,17 +130,12 @@ impl<'de> Deserializer<'de> {
     // Makes no attempt to handle escape sequences. What did you expect? This is
     // example code!
     fn parse_string(&mut self) -> Result<&'de str> {
-        //todo!()
-        //let len=&self.input[0..32];
-
         let (int_bytes, rest) = self.input.split_at(std::mem::size_of::<i32>());
         self.input = rest;
-        println!("{:?}", rest);
-        let t = i32::from_ne_bytes(int_bytes.try_into().unwrap());
-        println!("{:?}", int_bytes);
-        let c: Vec<u8> = self.input.to_vec();
 
-        //n => self.deserialize_unit(visitor),
+        let t = i32::from_ne_bytes(int_bytes.try_into().unwrap());
+
+        let c: Vec<u8> = self.input.to_vec();
         if c.iter().any(|&c| c == 0) {
             let slice_index_element = self
                 .input
@@ -223,28 +168,15 @@ impl<'de> Deserializer<'de> {
         } else {
             return Err(Error::ExpectedNull);
         }
-        //n => self.deserialize_unit(visitor),
     }
 
     fn parse_char(&mut self) -> Result<char> {
         let str2: &str = std::str::from_utf8(self.input).unwrap();
-        //let x = i32::from_str(str2).unwrap();
-        //let first_last_off: &str = &str2[3..str2.len() - 1];
-        //println!("{}", first_last_off);
-
         let my_char = str2.chars().next().expect("string is empty");
         self.parse_unsigned_u8();
         Ok(my_char)
     }
 }
-
-// fn parse_string(&mut self) -> Result<&'de str> {
-// let str2: &str = std::str::from_utf8(self.input).unwrap();
-// println!("{:?}", str2);
-// //Ok(first_last_off)
-// Ok(str2)
-
-// }
 
 impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     type Error = Error;
@@ -259,32 +191,13 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         Err(Error::Syntax)
     }
 
-    // Uses the `parse_bool` parsing function defined above to read the JSON
-    // identifier `true` or `false` from the input.
-    //
-    // Parsing refers to looking at the input and deciding that it contains the
-    // JSON value `true` or `false`.
-    //
-    // Deserialization refers to mapping that JSON value into Serde's data
-    // model by invoking one of the `Visitor` methods. In the case of JSON and
-    // bool that mapping is straightforward so the distinction may seem silly,
-    // but in other cases Deserializers sometimes perform non-obvious mappings.
-    // For example the TOML format has a Datetime type and Serde's data model
-    // does not. In the `toml` crate, a Datetime in the input is deserialized by
-    // mapping it to a Serde data model "struct" type with a special name and a
-    // single field containing the Datetime represented as a string.
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let _string: &str = "bool";
         visitor.visit_bool(self.parse_bool()?)
-
-        //Ok(string)
     }
 
-    // The `parse_https://github.com/bincode-org/bincode/blob/trunk/src/de/impls.rssigned` function is generic over the integer type `T` so here
-    // it is invoked with `T=i8`. The next 8 methods are similar.
     fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -341,22 +254,18 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         visitor.visit_u64(self.parse_unsigned_u64()?)
     }
 
-    // Float parsing is stupidly hard.
     fn deserialize_f32<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         _visitor.visit_f32(self.parse_float_f32()?)
-        //unimplemented!()
     }
 
-    // Float parsing is stupidly hard.
     fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         _visitor.visit_f64(self.parse_float_f64()?)
-        //unimplemented!()
     }
 
     // The `Serializer` implementation on the previous page serialized chars as
@@ -366,9 +275,8 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // Parse a string, check that it is one character, call `visit_char`.
-        //unimplemented!()
+
         _visitor.visit_char(self.parse_char()?)
-        //Err(Error::Syntax)
     }
 
     // Refer to the "Understanding deserializer lifetimes" page for information
@@ -387,44 +295,31 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_str(visitor)
     }
 
-    // The `Serializer` implementation on the previous page serialized byte
-    // arrays as JSON arrays of bytes. Handle that representation here.
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         Err(Error::Syntax)
-
-        //unimplemented!()
     }
 
     fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        //_visitor.visit_u8(self.parse_unsigned_u8()?)
-        //self.deserialize_bytes(_visitor)
         Err(Error::Syntax)
-        //unimplemented!()
     }
 
-    // An absent optional is represented as the JSON `null` and a present
-    // optional is represented as just the contained value.
-    //
     // As commented in `Serializer` implementation, this is a lossy
-    // representation. For example the values `Some(())` and `None` both
-    // serialize as just `null`. Unfortunately this is typically what people
-    // expect when working with JSON. Other formats are encouraged to behave
-    // more intelligently if possible.
+    // representation.
+
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         if self.input.starts_with(b"null") {
-            //self.input = &self.input["null".len()..];
             visitor.visit_none()
         } else {
-            visitor.visit_some(self)
+            Err(Error::Syntax)
         }
     }
 
@@ -434,10 +329,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         if self.input.starts_with(b"null") {
-            //self.input = &self.input["null".len()..];
             visitor.visit_unit()
         } else {
-            Err(Error::ExpectedNull)
+            Err(Error::Syntax)
         }
     }
 
@@ -467,15 +361,28 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         // Parse the opening bracket of the sequence.
-        let value = _visitor.visit_seq(CommaSeparated::new(self))?;
+        let d: Vec<u8> = self.input.to_vec();
+        if (d.len() > 4) | (d.len() == 4) {
+            let m = &d[0..4];
+            let n = &d[4..d.len()];
+            let t = i32::from_ne_bytes(m.try_into().unwrap());
 
-        //println!("Yes");
-        Ok(value)
+            if (t == n.len().try_into().unwrap()) | (t < n.len().try_into().unwrap()) {
+                let value = _visitor.visit_seq(SomeIpVec::new(self))?;
+
+                Ok(value)
+            } else {
+                let value = _visitor.visit_seq(SomeIp::new(self))?;
+
+                Ok(value)
+            }
+        } else {
+            let value = _visitor.visit_seq(SomeIp::new(self))?;
+
+            Ok(value)
+        }
     }
 
-    // Tuples look just like sequences in JSON. Some formats may be able to
-    // represent tuples more efficiently.
-    //
     // As indicated by the length parameter, the `Deserialize` implementation
     // for a tuple in the Serde data model is required to know the length of the
     // tuple before even looking at the input data.
@@ -483,11 +390,9 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        println!("deserialize_tupule");
         self.deserialize_seq(visitor)
     }
 
-    // Tuple structs look just like sequences in JSON.
     fn deserialize_tuple_struct<V>(
         self,
         _name: &'static str,
@@ -500,9 +405,6 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         self.deserialize_seq(visitor)
     }
 
-    // Much like `deserialize_seq` but calls the visitors `visit_map` method
-    // with a `MapAccess` implementation, rather than the visitor's `visit_seq`
-    // method with a `SeqAccess` implementation.
     fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -510,14 +412,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
         // Parse the opening brace of the map.
 
         self.deserialize_seq(_visitor)
-        // let value = _visitor.visit_map(CommaSeparated::new(self))?;
-        // // Parse the closing brace of the map.
-
-        // Ok(value)
     }
-
-    // Structs look just like maps in JSON.
-    //
     // Notice the `fields` parameter - a "struct" in the Serde data model means
     // that the `Deserialize` implementation is required to know what the fields
     // are before even looking at the input data. Any key-value pairing in which
@@ -548,9 +443,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 
     // An identifier in Serde is the type that identifies a field of a struct or
-    // the variant of an enum. In JSON, struct fields and enum variants are
-    // represented as strings. In other formats they may be represented as
-    // numeric indices.
+    // the variant of an enum.
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -569,6 +462,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     // Some formats are not able to implement this at all. Formats that can
     // implement `deserialize_any` and `deserialize_ignored_any` are known as
     // self-describing.
+
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -577,23 +471,20 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     }
 }
 
-// In order to handle commas correctly when deserializing a JSON array or map,
-// we need to track whether we are on the first element or past the first
-// element.
-struct CommaSeparated<'a, 'de: 'a> {
+struct SomeIp<'a, 'de: 'a> {
     de: &'a mut Deserializer<'de>,
     first: bool,
 }
 
-impl<'a, 'de> CommaSeparated<'a, 'de> {
+impl<'a, 'de> SomeIp<'a, 'de> {
     fn new(de: &'a mut Deserializer<'de>) -> Self {
-        CommaSeparated { de, first: true }
+        SomeIp { de, first: true }
     }
 }
 
 // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
 // through elements of the sequence.
-impl<'de, 'a> SeqAccess<'de> for CommaSeparated<'a, 'de> {
+impl<'de, 'a> SeqAccess<'de> for SomeIp<'a, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>>
@@ -602,16 +493,55 @@ impl<'de, 'a> SeqAccess<'de> for CommaSeparated<'a, 'de> {
     {
         // Check if there are no more elements.
         _seed.deserialize(&mut *self.de).map(Some)
+    }
+}
+
+struct SomeIpVec<'a, 'de: 'a> {
+    de: &'a mut Deserializer<'de>,
+    first: bool,
+    len: usize,
+}
+impl<'a, 'de> SomeIpVec<'a, 'de> {
+    fn new(de: &'a mut Deserializer<'de>) -> Self {
+        let (int_bytes, rest) = de.input.split_at(std::mem::size_of::<i32>());
+        de.input = rest;
+        let len = i32::from_ne_bytes(int_bytes.try_into().unwrap());
+
+        SomeIpVec {
+            de,
+            first: true,
+            len: len.try_into().unwrap(),
+        }
+    }
+}
+
+// `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
+// through elements of the sequence.
+impl<'de, 'a> SeqAccess<'de> for SomeIpVec<'a, 'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        // Check if there are no more elements.
+
+        if self.len > 0 {
+            self.len -= 1;
+
+            _seed.deserialize(&mut *self.de).map(Some)
+        } else {
+            Ok(None)
+        }
 
         // `SeqAccess` is provided to the `Visitor` to give it the ability to iterate
         // through elements of the seq
-        //todo!()
     }
 }
 
 // `MapAccess` is provided to the `Visitor` to give it the ability to iterate
 // through entries of the map.
-impl<'de, 'a> MapAccess<'de> for CommaSeparated<'a, 'de> {
+impl<'de, 'a> MapAccess<'de> for SomeIp<'a, 'de> {
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, _seed: K) -> Result<Option<K::Value>>
@@ -619,9 +549,7 @@ impl<'de, 'a> MapAccess<'de> for CommaSeparated<'a, 'de> {
         K: DeserializeSeed<'de>,
     {
         // Check if there are no more entries.
-
         _seed.deserialize(&mut *self.de).map(Some)
-        //todo!()
     }
 
     fn next_value_seed<V>(&mut self, _seed: V) -> Result<V::Value>
@@ -633,8 +561,6 @@ impl<'de, 'a> MapAccess<'de> for CommaSeparated<'a, 'de> {
         // case the code is a bit simpler having it here.
 
         _seed.deserialize(&mut *self.de)
-
-        //todo!()
     }
 }
 struct Enum<'a, 'de: 'a> {
@@ -677,172 +603,166 @@ impl<'de, 'a> VariantAccess<'de> for Enum<'a, 'de> {
     // If the `Visitor` expected this variant to be a unit variant, the input
     // should have been the plain string case handled in `deserialize_enum`.
     fn unit_variant(self) -> Result<()> {
-        Err(Error::ExpectedString)
+        Err(Error::Syntax)
     }
 
-    // Newtype variants are represented in JSON as `{ NAME: VALUE }` so
-    // deserialize the value here.
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: DeserializeSeed<'de>,
     {
-        seed.deserialize(self.de)
+        Err(Error::Syntax)
     }
 
-    // Tuple variants are represented in JSON as `{ NAME: [DATA...] }` so
-    // deserialize the sequence of data here.
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_seq(self.de, visitor)
+        Err(Error::Syntax)
     }
 
-    // Struct variants are represented in JSON as `{ NAME: { K: V, ... } }` so
-    // deserialize the inner map here.
     fn struct_variant<V>(self, _fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        de::Deserializer::deserialize_map(self.de, visitor)
+        Err(Error::Syntax)
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-#[test]
-fn test_struct() {
-    #[derive(Deserialize, PartialEq, Debug)]
-    struct Test<'a> {
-        bool: bool,
-        i: u8,
-        ch: &'a str,
-        tup: [u8; 2],
-        bool_ch: bool,
-        t: u16,
-        s: u8,
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_struct() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Test {
+            bool: bool,
+            i: u8,
+            ch: String,
+            tup: [u8; 2],
+            bool_ch: bool,
+            t: u16,
+            s: u8,
+            seq: Vec<String>,
+            seq2: Vec<u8>,
+            seq3: Vec<Vec<u8>>,
+        }
+
+        let j: [u8; 62] = [
+            0, 2, 5, 0, 0, 0, 239, 187, 191, 72, 105, 0, 6, 4, 1, 1, 0, 9, 2, 0, 0, 0, 4, 0, 0, 0,
+            239, 187, 191, 97, 0, 4, 0, 0, 0, 239, 187, 191, 98, 0, 2, 0, 0, 0, 12, 32, 2, 0, 0, 0,
+            2, 0, 0, 0, 12, 34, 2, 0, 0, 0, 23, 43,
+        ];
+
+        let expected = Test {
+            bool: false,
+            i: 2u8,
+            ch: "Hi".to_owned(),
+            tup: [6, 4],
+            bool_ch: true,
+            t: 1u16,
+            s: 9u8,
+            seq: vec!["a".to_owned(), "b".to_owned()],
+            seq2: vec![12, 32],
+            seq3: vec![vec![12, 34], vec![23, 43]],
+        };
+        assert_eq!(expected, from_bytes(&j).unwrap());
     }
 
-    let j: [u8; 18] = [
-        0, 2, 5, 0, 0, 0, 239, 187, 191, 72, 105, 0, 6, 4, 1, 1, 0, 9,
-    ];
+    #[test]
+    fn test_u8() {
+        let j: [u8; 1] = [9];
+        assert_eq!(9u8, from_bytes(&j).unwrap());
+    }
+    #[test]
+    fn test_u16() {
+        let j: [u8; 2] = [1, 0];
+        assert_eq!(1u16, from_bytes(&j).unwrap());
+    }
 
-    let expected = Test {
-        bool: false,
-        i: 2u8,
-        ch: "Hi",
-        tup: [6, 4],
-        bool_ch: true,
-        t: 1u16,
-        s: 9u8,
-    };
-    assert_eq!(expected, from_bytes(&j).unwrap());
-}
+    #[test]
+    fn test_i8() {
+        let j: [u8; 1] = [255];
+        assert_eq!(-1i8, from_bytes(&j).unwrap());
+    }
 
-#[test]
-fn test_u8() {
-    let j: [u8; 1] = [9];
-    assert_eq!(9u8, from_bytes(&j).unwrap());
-}
-#[test]
-fn test_u16() {
-    let j: [u8; 2] = [1, 0];
-    assert_eq!(1u16, from_bytes(&j).unwrap());
-}
+    #[test]
+    fn test_f32() {
+        let j: [u8; 4] = [92, 35, 19, 69];
+        assert_eq!(2354.21f32, from_bytes(&j).unwrap());
+    }
+    #[test]
+    fn test_f64() {
+        let j: [u8; 8] = [82, 184, 30, 133, 107, 100, 162, 64];
+        assert_eq!(2354.21f64, from_bytes(&j).unwrap());
+    }
 
-#[test]
-fn test_i8() {
-    //let i: u8=9;
-    let j: [u8; 1] = [255];
-    assert_eq!(-1i8, from_bytes(&j).unwrap());
-}
+    #[test]
+    fn test_bool() {
+        let j = [1];
+        assert_eq!(true, from_bytes(&j).unwrap());
+    }
+    #[test]
+    fn test_string() {
+        let j: [u8; 10] = [5, 0, 0, 0, 239, 187, 191, 72, 105, 0];
 
-#[test]
-fn test_f32() {
-    //let i: u8=9;
-    let j: [u8; 4] = [92, 35, 19, 69];
-    assert_eq!(2354.21f32, from_bytes(&j).unwrap());
-}
-#[test]
-fn test_f64() {
-    //let i: u8=9;
-    let j: [u8; 8] = [82, 184, 30, 133, 107, 100, 162, 64];
-    assert_eq!(2354.21f64, from_bytes(&j).unwrap());
-}
+        assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
+    }
 
-#[test]
-fn test_bool() {
-    //let j = b"0";
-    //let i: u8=0;
-    let j = [1];
-    assert_eq!(true, from_bytes(&j).unwrap());
-}
-#[test]
-fn test_string() {
-    //let j = b"0";
-    //let i = String::from("Done");
-    let j: [u8; 10] = [5, 0, 0, 0, 239, 187, 191, 72, 105, 0];
-    //let j: [u8;4] = [2,72,105,0];
-    assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
-    //let j: [u8;4] = [5,72,105,0];
-}
+    #[test]
+    fn test_string_unequal_len() {
+        let j: [u8; 10] = [7, 0, 0, 0, 239, 187, 191, 72, 105, 0];
+        assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
+    }
+    #[test]
+    fn test_string_no_terminate() {
+        let j: [u8; 9] = [5, 0, 0, 0, 239, 187, 191, 72, 105];
+        assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
+    }
 
-#[test]
-fn test_string_unequal_len() {
-    //let j = b"0";
-    //let i = String::from("Done");
-    let j: [u8; 10] = [7, 0, 0, 0, 239, 187, 191, 72, 105, 0];
-    //let j: [u8;4] = [2,72,105,0];
-    assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
-    //let j: [u8;4] = [5,72,105,0];
-}
-#[test]
-fn test_string_no_terminate() {
-    //let j = b"0";
-    //let i = String::from("Done");
-    let j: [u8; 9] = [5, 0, 0, 0, 239, 187, 191, 72, 105];
-    //let j: [u8;4] = [2,72,105,0];
-    assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
-    //let j: [u8;4] = [5,72,105,0];
-}
+    #[test]
+    fn test_string_no_bom() {
+        let j: [u8; 7] = [5, 0, 0, 0, 72, 105, 0];
 
-#[test]
-fn test_string_no_bom() {
-    //let j = b"0";
-    //let i = String::from("Done");
-    let j: [u8; 7] = [5, 0, 0, 0, 72, 105, 0];
-    //let j: [u8;4] = [2,72,105,0];
-    assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
-    //let j: [u8;4] = [5,72,105,0];
-}
+        assert_eq!("Hi", from_bytes::<&str>(&j).unwrap());
+    }
 
-#[test]
-fn test_tupule() {
-    //let j = b"0";
+    #[test]
+    fn test_tupule() {
+        let j: [u8; 3] = [6, 8, 9];
+        assert_eq!((6u8, 8u8, 9u8), from_bytes(&j).unwrap());
+    }
+    #[test]
+    fn test_char() {
+        let j: [u8; 1] = [97];
+        assert_eq!('a', from_bytes::<char>(&j).unwrap());
+    }
 
-    let j: [u8; 14] = [6, 8, 4, 0, 0, 0, 239, 187, 191, 97, 0, 9, 1, 0];
-    //let k:[u8;2] = [,];
-    assert_eq!((6u8, 8u8, "a", 9u8, 1u16), from_bytes(&j).unwrap());
-}
-#[test]
-fn test_char() {
-    let j: [u8; 1] = [97];
-    //let k:[u8;2] = [,];
-    assert_eq!('a', from_bytes::<char>(&j).unwrap());
-}
+    #[test]
+    fn test_seq() {
+        let test = vec![1, 2, 9, 7];
+        let expected = vec![4, 0, 0, 0, 1, 2, 9, 7];
+        let j = expected.as_ref();
+        assert_eq!(test, from_bytes::<Vec<u8>>(&j).unwrap());
+    }
 
-////test case for test_seq and test_nested_seq have failed
-#[test]
-fn test_seq() {
-    let test: Vec<u8> = vec![1, 2];
-    let expected = vec![1, 2];
-    let j = expected.as_ref();
-    assert_eq!(test, from_bytes::<Vec<u8>>(&j).unwrap());
-}
+    #[test]
+    fn test_nested_seq() {
+        let test: Vec<Vec<u8>> = vec![vec![1, 3, 4, 6], vec![3, 4, 9, 1]];
+        let expected: Vec<u8> = vec![2, 0, 0, 0, 4, 0, 0, 0, 1, 3, 4, 6, 4, 0, 0, 0, 3, 4, 9, 1];
+        let j = expected.as_ref();
+        assert_eq!(test, from_bytes::<Vec<Vec<u8>>>(&j).unwrap());
+    }
 
-#[test]
-fn test_nested_seq() {
-    let test: Vec<Vec<u8>> = vec![vec![1, 3], vec![3, 4], vec![5, 6]];
-    let expected: Vec<u8> = vec![1, 3, 3, 4, 5, 6];
-    let j = expected.as_ref();
-    assert_eq!(test, from_bytes::<Vec<Vec<u8>>>(&j).unwrap());
+    #[test]
+    fn test_vec_str() {
+        let test = vec!["a".to_owned(), "b".to_owned()];
+        let expected = vec![
+            2, 0, 0, 0, 4, 0, 0, 0, 239, 187, 191, 97, 0, 4, 0, 0, 0, 239, 187, 191, 98, 0,
+        ];
+        let j = expected.as_ref();
+        assert_eq!(test, from_bytes::<Vec<String>>(&j).unwrap());
+    }
 }
